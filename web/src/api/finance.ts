@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { ApiError, api } from "./client";
 
 export type AccountType = "checking" | "savings" | "credit_card" | "loan" | "investment" | "other";
 export type Direction = "in" | "out";
@@ -226,6 +226,38 @@ export function monthRange(month: string): { from: string; to: string } {
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
+export interface ImportRowView {
+  date: string;
+  description: string;
+  merchant?: string;
+  reference?: string;
+  external_id?: string;
+  amount: string;
+  direction: Direction;
+  duplicate: boolean;
+  repeated: boolean;
+}
+
+export interface ImportPreview {
+  format: string;
+  file_name: string;
+  total: number;
+  skipped: number;
+  existing: number;
+  repeated: number;
+  date_from?: string;
+  date_to?: string;
+  rows: ImportRowView[];
+  truncated: boolean;
+}
+
+export interface ImportResult {
+  total: number;
+  imported: number;
+  duplicate: number;
+  skipped: number;
+}
+
 export const financeApi = {
   accounts: () => api.get<{ accounts: Account[] }>("/api/v1/accounts"),
   account: (id: string) => api.get<Account>(`/api/v1/accounts/${id}`),
@@ -265,6 +297,24 @@ export const financeApi = {
     return api.get<Summary>(`/api/v1/summary${qs ? `?${qs}` : ""}`);
   },
   months: (months = 6) => api.get<{ months: MonthTotal[] }>(`/api/v1/summary/months?months=${months}`),
+
+  // Statement import is multipart, so it bypasses the JSON api client.
+  importStatement: async (accountId: string, file: File, commit: boolean) => {
+    const form = new FormData();
+    form.set("file", file);
+    if (commit) form.set("commit", "true");
+    const res = await fetch(`/api/v1/accounts/${accountId}/imports`, {
+      method: "POST",
+      credentials: "include",
+      body: form,
+    });
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : {};
+    if (!res.ok) {
+      throw new ApiError(res.status, data?.error?.code ?? "unknown", data?.error?.message ?? res.statusText);
+    }
+    return data as { preview?: ImportPreview; result?: ImportResult };
+  },
 };
 
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {

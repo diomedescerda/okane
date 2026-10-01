@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -648,3 +649,51 @@ func (h *financeHandler) DeleteLink(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// ImportStatement previews or commits a CSV/OFX bank statement for an account.
+// The multipart form must contain a "file" part; pass commit=true to persist.
+func (h *financeHandler) ImportStatement(w http.ResponseWriter, r *http.Request) {
+	user, _ := UserFromContext(r.Context())
+	accountID, err := urlUUID(r, "accountID")
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+
+	if err := r.ParseMultipartForm(maxImportBytes); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "expected a multipart form with a file field")
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "missing_file", `missing "file" field`)
+		return
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(io.LimitReader(file, maxImportBytes))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "unreadable_file", "could not read the uploaded file")
+		return
+	}
+
+	commit := r.FormValue("commit") == "true" || r.FormValue("commit") == "1"
+	if commit {
+		result, err := h.svc.CommitImport(r.Context(), user.ID, accountID, header.Filename, data)
+		if err != nil {
+			h.fail(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"result": result})
+		return
+	}
+
+	preview, err := h.svc.PreviewImport(r.Context(), user.ID, accountID, header.Filename, data)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"preview": preview})
+}
+
+const maxImportBytes = 10 << 20

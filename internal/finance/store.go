@@ -708,3 +708,61 @@ func (s *Store) DeleteLink(ctx context.Context, userID, linkID uuid.UUID) error 
 	}
 	return tx.Commit(ctx)
 }
+
+// CountDedupeHashes returns the subset of hashes that already exist for the account.
+func (s *Store) CountDedupeHashes(ctx context.Context, accountID uuid.UUID, hashes []string) (map[string]bool, error) {
+	existing := make(map[string]bool, len(hashes))
+	if len(hashes) == 0 {
+		return existing, nil
+	}
+	rows, err := s.pool.Query(ctx,
+		`SELECT dedupe_hash FROM transactions WHERE account_id = $1 AND dedupe_hash = ANY($2)`,
+		accountID, hashes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("check dedupe hashes: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var hash string
+		if err := rows.Scan(&hash); err != nil {
+			return nil, fmt.Errorf("scan dedupe hash: %w", err)
+		}
+		existing[hash] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate dedupe hashes: %w", err)
+	}
+	return existing, nil
+}
+
+// InsertImportedTransactions inserts rows, ignoring ones that already exist
+// (same account and dedupe hash). Returns the number of inserted rows.
+func (s *Store) InsertImportedTransactions(ctx context.Context, p ImportInsertParams) (int64, error) {
+	if len(p.Transactions) == 0 {
+		return 0, nil
+	}
+	placeholders := make([]string, 0, len(p.Transactions))
+	args := make([]any, 0, len(p.Transactions)*10)
+	for _, t := range p.Transactions {
+		base := len(args)
+		placeholders = append(placeholders, fmt.Sprintf(
+			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10,
+		))
+		args = append(args,
+			p.UserID, p.AccountID, t.Description, t.Merchant, t.Reference,
+			p.Currency, t.Amount, t.Direction, t.OccurredAt, t.DedupeHash,
+		)
+	}
+	q := `
+		INSERT INTO transactions
+			(user_id, account_id, description, merchant, reference, currency, amount, direction, occurred_at, dedupe_hash)
+		VALUES ` + strings.Join(placeholders, ", ") + `
+		ON CONFLICT (account_id, dedupe_hash) WHERE dedupe_hash IS NOT NULL DO NOTHING`
+	tag, err := s.pool.Exec(ctx, q, args...)
+	if err != nil {
+		return 0, fmt.Errorf("insert imported transactions: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}

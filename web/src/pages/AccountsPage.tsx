@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { ACCOUNT_TYPE_LABELS, financeApi, type Account } from "../api/finance";
 import { ApiError } from "../api/client";
 import { AccountModal } from "../components/AccountModal";
+import { ImportModal } from "../components/ImportModal";
 import { AppLayout } from "../components/AppLayout";
 import { InstitutionIcon } from "../components/InstitutionIcon";
 import { formatMoney } from "../lib/format";
@@ -21,6 +22,7 @@ const TYPE_ICONS: Record<string, string> = {
 export function AccountsPage() {
   const queryClient = useQueryClient();
   const [modal, setModal] = useState<{ account?: Account } | null>(null);
+  const [importModal, setImportModal] = useState<{ account: Account } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const accountsQuery = useQuery({ queryKey: ["accounts"], queryFn: financeApi.accounts });
@@ -125,6 +127,9 @@ export function AccountsPage() {
                     <td className="px-4 py-3 text-right tabular-nums text-slate-400">{account.transaction_count}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
+                        <button className="btn-ghost" onClick={() => setImportModal({ account })}>
+                          Import
+                        </button>
                         <button className="btn-ghost" onClick={() => setModal({ account })}>
                           Edit
                         </button>
@@ -156,6 +161,7 @@ export function AccountsPage() {
       </div>
 
       {modal && <AccountModal account={modal.account} onClose={() => setModal(null)} />}
+      {importModal && <ImportModal account={importModal.account} onClose={() => setImportModal(null)} />}
     </AppLayout>
   );
 }

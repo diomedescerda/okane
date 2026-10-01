@@ -60,6 +60,7 @@ func NewRouter(cfg *config.Config, pool *pgxpool.Pool, authSvc *auth.Service, fi
 				r.Get("/{accountID}", fh.GetAccount)
 				r.Patch("/{accountID}", fh.UpdateAccount)
 				r.Delete("/{accountID}", fh.DeleteAccount)
+				r.Post("/{accountID}/imports", fh.ImportStatement)
 			})
 
 			r.Get("/categories", fh.ListCategories)

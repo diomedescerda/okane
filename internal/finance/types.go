@@ -210,3 +210,23 @@ type UpdateTransactionParams struct {
 	Notes          *string
 	SetNotes       bool
 }
+
+// ImportedTransaction is a parsed statement row ready to be stored. Amount is
+// signed, negative for outflows.
+type ImportedTransaction struct {
+	Description string
+	Merchant    *string
+	Reference   *string
+	Amount      money.Amount
+	Direction   domain.Direction
+	OccurredAt  time.Time
+	DedupeHash  string
+}
+
+// ImportInsertParams inserts a batch of imported transactions for one account.
+type ImportInsertParams struct {
+	UserID       uuid.UUID
+	AccountID    uuid.UUID
+	Currency     string
+	Transactions []ImportedTransaction
+}

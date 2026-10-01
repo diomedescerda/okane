@@ -3,9 +3,9 @@
 Personal finance tracker: expenses and income from your bank accounts, spending
 by category, and AI insights — on the web and on iPhone.
 
-> Status: **accounting core**. Auth, accounts, transactions, categories and
-> Colombian banks are in place; statement import, AI insights and the iOS app
-> are next (see the roadmap below).
+> Status: **accounting core**. Auth, accounts, transactions, categories,
+> Colombian banks and CSV/OFX statement import are in place; AI insights and
+> the iOS app are next (see the roadmap below).
 
 ## Stack
 
@@ -72,6 +72,7 @@ The API returns a session token (for the iOS app) and sets an HttpOnly cookie
 | POST   | `/api/v1/accounts`          | Create a manual account (optionally attach to a bank via `link_id`) |
 | PATCH  | `/api/v1/accounts/{id}`     | Update account (`link_id: null` detaches it) |
 | DELETE | `/api/v1/accounts/{id}`     | Delete account (cascades its transactions) |
+| POST   | `/api/v1/accounts/{id}/imports` | Preview or commit a CSV/OFX statement (multipart `file`; add `commit=true` to import) |
 | GET    | `/api/v1/categories`        | List system + user categories        |
 | GET    | `/api/v1/institutions`      | List banks/wallets (`type`, `search`, `country`) |
 | POST   | `/api/v1/institutions`      | Add a custom institution (name, color, emoji icon) |
@@ -139,7 +140,8 @@ advisory lock, so it is safe to restart or scale).
 - [x] Accounts + transactions: CRUD, categories, dashboard (rules TBD)
 - [x] Banks: Colombian institutions with logos, custom institutions, connections
   (adding an account to a bank, detaching accounts without losing data)
-- [ ] CSV/OFX import so the app is useful without aggregation (next)
+- [x] CSV/OFX import: parse bank statements, preview duplicates, commit into
+  an account (works with manual accounts and bank connections)
 - [ ] Belvo aggregation (production access is paid): link flow, sync worker,
   webhooks, dedupe
 - [ ] AI: categorization fallback, monthly digest, anomalies, Q&A over your data
@@ -151,7 +153,8 @@ advisory lock, so it is safe to restart or scale).
 
 - Bank aggregation through Belvo is paused: the sandbox is free (fake data),
   but production access is a paid B2B service. The zero-cost path for real bank
-  data is statement import (CSV/OFX), which is the next milestone; the provider
-  seam in the schema stays ready for Belvo or another aggregator later.
+  data is downloading a CSV/OFX statement from your bank and importing it into
+  an account; the provider seam in the schema stays ready for Belvo or another
+  aggregator later.
 - On Linux, if `docker` says permission denied, log out and back in (or use
   `newgrp docker`) after being added to the `docker` group.

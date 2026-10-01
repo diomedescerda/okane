@@ -682,3 +682,122 @@ func validHexColor(c string) bool {
 	}
 	return true
 }
+
+// PreviewImport parses a statement file and reports what would be imported.
+func (s *Service) PreviewImport(ctx context.Context, userID, accountID uuid.UUID, fileName string, data []byte) (ImportPreview, error) {
+	if _, err := s.store.GetAccount(ctx, userID, accountID); err != nil {
+		return ImportPreview{}, err
+	}
+	loc := s.loc
+	if loc == nil {
+		loc = time.UTC
+	}
+	format, rows, skipped, err := parseStatement(fileName, data, loc)
+	if err != nil {
+		return ImportPreview{}, err
+	}
+	if len(rows) == 0 {
+		return ImportPreview{}, Invalid("no transactions found in the file")
+	}
+
+	hashes := hashRows(accountID, rows)
+	existing, err := s.store.CountDedupeHashes(ctx, accountID, hashes)
+	if err != nil {
+		return ImportPreview{}, err
+	}
+	repeats := make(map[string]int, len(hashes))
+	for _, hash := range hashes {
+		repeats[hash]++
+	}
+
+	preview := ImportPreview{Format: format, FileName: fileName, Total: len(rows), Skipped: skipped}
+	for i, row := range rows {
+		hash := hashes[i]
+		view := ImportRowView{
+			Date:        row.OccurredAt.Format("2006-01-02"),
+			Description: row.Description,
+			Merchant:    importText(row.Merchant),
+			Reference:   importText(row.Reference),
+			ExternalID:  importText(row.ExternalID),
+			Amount:      row.Amount.String(),
+			Direction:   string(row.Direction),
+			Duplicate:   existing[hash],
+			Repeated:    repeats[hash] > 1,
+		}
+		if view.Duplicate {
+			preview.Existing++
+		}
+		if view.Repeated {
+			preview.Repeated++
+		}
+		if preview.DateFrom == "" || view.Date < preview.DateFrom {
+			preview.DateFrom = view.Date
+		}
+		if view.Date > preview.DateTo {
+			preview.DateTo = view.Date
+		}
+		if len(preview.Rows) < previewRowLimit {
+			preview.Rows = append(preview.Rows, view)
+		} else {
+			preview.Truncated = true
+		}
+	}
+	return preview, nil
+}
+
+// CommitImport parses a statement and stores the new rows. Rows already present
+// (same account and dedupe hash) are skipped, so importing the same file twice
+// is safe.
+func (s *Service) CommitImport(ctx context.Context, userID, accountID uuid.UUID, fileName string, data []byte) (ImportResult, error) {
+	account, err := s.store.GetAccount(ctx, userID, accountID)
+	if err != nil {
+		return ImportResult{}, err
+	}
+	loc := s.loc
+	if loc == nil {
+		loc = time.UTC
+	}
+	_, rows, skipped, err := parseStatement(fileName, data, loc)
+	if err != nil {
+		return ImportResult{}, err
+	}
+	if len(rows) == 0 {
+		return ImportResult{}, Invalid("no transactions found in the file")
+	}
+
+	hashes := hashRows(accountID, rows)
+	transactions := make([]ImportedTransaction, 0, len(rows))
+	for i, row := range rows {
+		transactions = append(transactions, ImportedTransaction{
+			Description: row.Description,
+			Merchant:    row.Merchant,
+			Reference:   row.Reference,
+			Amount:      row.Amount,
+			Direction:   row.Direction,
+			OccurredAt:  row.OccurredAt,
+			DedupeHash:  hashes[i],
+		})
+	}
+	imported, err := s.store.InsertImportedTransactions(ctx, ImportInsertParams{
+		UserID:       userID,
+		AccountID:    accountID,
+		Currency:     account.Currency,
+		Transactions: transactions,
+	})
+	if err != nil {
+		return ImportResult{}, err
+	}
+	return ImportResult{
+		Total:     len(rows),
+		Imported:  int(imported),
+		Duplicate: len(rows) - int(imported),
+		Skipped:   skipped,
+	}, nil
+}
+
+func importText(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}

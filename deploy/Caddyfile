@@ -1,0 +1,16 @@
+# Caddy serves the SPA and proxies the API. With OKANE_DOMAIN set to a real
+# domain, TLS certificates are provisioned automatically.
+{$OKANE_DOMAIN:localhost} {
+	encode zstd gzip
+
+	@api path /api/* /healthz /readyz
+	handle @api {
+		reverse_proxy api:8080
+	}
+
+	handle {
+		root * /srv/web
+		try_files {path} /index.html
+		file_server
+	}
+}

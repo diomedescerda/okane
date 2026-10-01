@@ -1,0 +1,90 @@
+# Production stack for a single VPS:
+#   docker compose -f deploy/compose.yaml --env-file deploy/.env up -d --build
+#
+# Copy deploy/.env.example to deploy/.env and fill it in first.
+
+name: okane
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: okane
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: okane
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U okane -d okane"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      OKANE_ENV: prod
+      OKANE_ADDR: ":8080"
+      OKANE_DATABASE_URL: postgres://okane:${POSTGRES_PASSWORD}@postgres:5432/okane?sslmode=disable
+      OKANE_APP_URL: https://${OKANE_DOMAIN}
+      OKANE_SESSION_COOKIE_SECURE: "true"
+      OKANE_SESSION_TTL: ${OKANE_SESSION_TTL:-720h}
+      OKANE_LOG_FORMAT: json
+      OKANE_BELVO_ENV: ${OKANE_BELVO_ENV:-sandbox}
+      OKANE_BELVO_SECRET_ID: ${OKANE_BELVO_SECRET_ID:-}
+      OKANE_BELVO_SECRET_PASSWORD: ${OKANE_BELVO_SECRET_PASSWORD:-}
+      OKANE_AI_BASE_URL: ${OKANE_AI_BASE_URL:-https://opencode.ai/inference/openai/v1}
+      OKANE_AI_API_KEY: ${OKANE_AI_API_KEY:-}
+      OKANE_AI_MODEL: ${OKANE_AI_MODEL:-glm-5.1}
+    expose:
+      - "8080"
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      OKANE_DOMAIN: ${OKANE_DOMAIN:?set OKANE_DOMAIN in deploy/.env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
+  # Daily gzipped pg_dump with 14-day retention.
+  backup:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?}
+    volumes:
+      - ./backups:/backups
+    entrypoint:
+      - sh
+      - -c
+      - |
+        while true; do
+          pg_dump -h postgres -U okane -d okane | gzip > "/backups/okane-$$(date +%Y%m%d-%H%M%S).sql.gz"
+          find /backups -name 'okane-*.sql.gz' -mtime +14 -delete
+          sleep 86400
+        done
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

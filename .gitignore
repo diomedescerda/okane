@@ -1,0 +1,35 @@
+# Environment
+.env
+.env.local
+*.local
+
+# Go
+/bin/
+okane
+*.test
+coverage.out
+
+# Node
+node_modules/
+web/dist/
+web/.vite/
+npm-debug.log*
+pnpm-debug.log*
+
+# Xcode
+ios/build/
+ios/DerivedData/
+xcuserdata/
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Data
+/data/
+deploy/backups/
+*.dump

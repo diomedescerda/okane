@@ -3,10 +3,13 @@ const currencyFormatters = new Map<string, Intl.NumberFormat>();
 function currencyFormatter(currency: string): Intl.NumberFormat {
   let formatter = currencyFormatters.get(currency);
   if (!formatter) {
-    formatter = new Intl.NumberFormat("es-MX", {
+    // The Colombian peso is not used with decimal subunits in everyday amounts.
+    const zeroDecimals = currency === "COP";
+    formatter = new Intl.NumberFormat("es-CO", {
       style: "currency",
       currency,
       currencyDisplay: "narrowSymbol",
+      ...(zeroDecimals ? { minimumFractionDigits: 0, maximumFractionDigits: 0 } : {}),
     });
     currencyFormatters.set(currency, formatter);
   }
@@ -14,14 +17,14 @@ function currencyFormatter(currency: string): Intl.NumberFormat {
 }
 
 /** Formats a decimal string (e.g. "-1234.50") as currency. */
-export function formatMoney(value: string | number, currency = "MXN"): string {
+export function formatMoney(value: string | number, currency = "COP"): string {
   const n = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(n)) return "—";
   return currencyFormatter(currency).format(n);
 }
 
 /** Formats a signed amount with an explicit + / − prefix. */
-export function formatSigned(value: string | number, currency = "MXN"): string {
+export function formatSigned(value: string | number, currency = "COP"): string {
   const n = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(n)) return "—";
   const formatted = formatMoney(Math.abs(n), currency);
@@ -31,14 +34,14 @@ export function formatSigned(value: string | number, currency = "MXN"): string {
 export function formatDate(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("es-MX", { day: "2-digit", month: "short", year: "numeric" }).format(date);
+  return new Intl.DateTimeFormat("es-CO", { day: "2-digit", month: "short", year: "numeric" }).format(date);
 }
 
 /** Formats "2026-10" as "oct 2026". */
 export function formatMonth(month: string): string {
   const [year, m] = month.split("-").map(Number);
   if (!year || !m) return month;
-  return new Intl.DateTimeFormat("es-MX", { month: "short", year: "numeric" }).format(
+  return new Intl.DateTimeFormat("es-CO", { month: "short", year: "numeric" }).format(
     new Date(year, m - 1, 1),
   );
 }

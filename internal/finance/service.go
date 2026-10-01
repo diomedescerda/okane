@@ -34,9 +34,13 @@ type NewAccount struct {
 	Currency        string
 	OpeningBalance  money.Amount
 	InstitutionName string
+	// LinkID attaches the account to a bank connection when set.
+	LinkID *uuid.UUID
 }
 
 // AccountPatch is a partial account update; nil fields are left unchanged.
+// LinkID uses pointer-to-pointer: nil leaves the connection unchanged, a
+// pointer to nil detaches the account, a pointer to a UUID attaches it.
 type AccountPatch struct {
 	Name            *string
 	Type            *string
@@ -45,6 +49,7 @@ type AccountPatch struct {
 	OpeningBalance  *money.Amount
 	InstitutionName *string
 	IsActive        *bool
+	LinkID          **uuid.UUID
 }
 
 // NewTransaction is the input for CreateTransaction. Amount is the positive
@@ -107,17 +112,28 @@ func (s *Service) CreateAccount(ctx context.Context, userID uuid.UUID, in NewAcc
 		return AccountView{}, err
 	}
 	if currency == "" {
-		currency = "MXN"
+		currency = "COP"
 	}
 
-	return s.store.CreateAccount(ctx, CreateAccountParams{
+	params := CreateAccountParams{
 		UserID:          userID,
 		Name:            name,
 		Type:            accType,
 		Currency:        currency,
 		OpeningBalance:  in.OpeningBalance,
 		InstitutionName: strings.TrimSpace(in.InstitutionName),
-	})
+	}
+	if in.LinkID != nil {
+		link, err := s.store.GetLink(ctx, userID, *in.LinkID)
+		if err != nil {
+			return AccountView{}, err
+		}
+		params.LinkID = in.LinkID
+		if params.InstitutionName == "" {
+			params.InstitutionName = link.InstitutionName
+		}
+	}
+	return s.store.CreateAccount(ctx, params)
 }
 
 func (s *Service) UpdateAccount(ctx context.Context, userID, accountID uuid.UUID, in AccountPatch) (AccountView, error) {
@@ -125,7 +141,7 @@ func (s *Service) UpdateAccount(ctx context.Context, userID, accountID uuid.UUID
 	if err != nil {
 		return AccountView{}, err
 	}
-	if current.LinkID != nil && (in.OpeningBalance != nil || in.Currency != nil) {
+	if current.Provider != "manual" && (in.OpeningBalance != nil || in.Currency != nil) {
 		return AccountView{}, Invalid("balance and currency of a linked account are managed by the bank connection")
 	}
 
@@ -173,6 +189,25 @@ func (s *Service) UpdateAccount(ctx context.Context, userID, accountID uuid.UUID
 		params.InstitutionName = &institution
 	}
 	params.IsActive = in.IsActive
+
+	if in.LinkID != nil {
+		if *in.LinkID == nil {
+			// Detach: keep the account and its transactions, drop the connection.
+			params.SetLink = true
+			params.LinkID = nil
+			institution := ""
+			params.InstitutionName = &institution
+		} else {
+			link, err := s.store.GetLink(ctx, userID, **in.LinkID)
+			if err != nil {
+				return AccountView{}, err
+			}
+			params.SetLink = true
+			params.LinkID = *in.LinkID
+			institution := link.InstitutionName
+			params.InstitutionName = &institution
+		}
+	}
 
 	return s.store.UpdateAccount(ctx, params)
 }
@@ -511,4 +546,139 @@ func cleanOptionalPresent(s **string) (value *string, set bool) {
 		return nil, true
 	}
 	return cleanOptional(*s), true
+}
+
+// --- Institutions ---
+
+// NewInstitution is the input for adding a custom bank or wallet.
+type NewInstitution struct {
+	DisplayName  string
+	Type         string
+	Website      string
+	PrimaryColor string
+	Icon         string
+}
+
+// ListInstitutions returns the system catalog plus the user's custom rows.
+func (s *Service) ListInstitutions(ctx context.Context, userID uuid.UUID, f InstitutionFilter) ([]InstitutionView, error) {
+	f.UserID = userID
+	if f.Type != nil && !validInstitutionType(*f.Type) {
+		return nil, Invalid("invalid institution type %q", *f.Type)
+	}
+	return s.store.ListInstitutions(ctx, f)
+}
+
+// CreateInstitution adds a custom bank or wallet for the user.
+func (s *Service) CreateInstitution(ctx context.Context, userID uuid.UUID, in NewInstitution) (InstitutionView, error) {
+	displayName := strings.TrimSpace(in.DisplayName)
+	if displayName == "" {
+		return InstitutionView{}, Invalid("institution name is required")
+	}
+	if utf8.RuneCountInString(displayName) > 60 {
+		return InstitutionView{}, Invalid("institution name must be 60 characters or fewer")
+	}
+	instType := domain.InstitutionType(strings.TrimSpace(in.Type))
+	if instType == "" {
+		instType = domain.InstitutionBank
+	}
+	if !validInstitutionType(instType) {
+		return InstitutionView{}, Invalid("invalid institution type %q", in.Type)
+	}
+	website := strings.TrimSpace(in.Website)
+	if website != "" && !strings.HasPrefix(website, "http://") && !strings.HasPrefix(website, "https://") {
+		return InstitutionView{}, Invalid("website must start with http:// or https://")
+	}
+	color := strings.TrimSpace(in.PrimaryColor)
+	if color != "" && !validHexColor(color) {
+		return InstitutionView{}, Invalid("primary color must be a hex value like #1A2B3C")
+	}
+	icon := strings.TrimSpace(in.Icon)
+	if utf8.RuneCountInString(icon) > 8 {
+		return InstitutionView{}, Invalid("icon must be a short emoji")
+	}
+	return s.store.CreateInstitution(ctx, CreateInstitutionParams{
+		UserID:       userID,
+		Name:         strings.ToLower(displayName),
+		DisplayName:  displayName,
+		Type:         instType,
+		Website:      website,
+		PrimaryColor: color,
+		Icon:         icon,
+	})
+}
+
+// DeleteInstitution removes a custom institution and detaches every account
+// connected through it. System institutions cannot be deleted.
+func (s *Service) DeleteInstitution(ctx context.Context, userID, institutionID uuid.UUID) error {
+	inst, err := s.store.GetInstitution(ctx, userID, institutionID)
+	if err != nil {
+		return err
+	}
+	if inst.IsSystem {
+		return Invalid("built-in institutions cannot be deleted")
+	}
+	return s.store.DeleteInstitution(ctx, userID, institutionID)
+}
+
+// GetInstitution returns a single institution visible to the user.
+func (s *Service) GetInstitution(ctx context.Context, userID, institutionID uuid.UUID) (InstitutionView, error) {
+	return s.store.GetInstitution(ctx, userID, institutionID)
+}
+
+// --- Connections ---
+
+// ListLinks returns the user's bank connections.
+func (s *Service) ListLinks(ctx context.Context, userID uuid.UUID) ([]LinkView, error) {
+	return s.store.ListLinks(ctx, userID)
+}
+
+// GetLink returns a single connection owned by the user.
+func (s *Service) GetLink(ctx context.Context, userID, linkID uuid.UUID) (LinkView, error) {
+	return s.store.GetLink(ctx, userID, linkID)
+}
+
+// CreateLink connects the user to an institution. Accounts created afterwards
+// can be attached to the connection.
+func (s *Service) CreateLink(ctx context.Context, userID, institutionID uuid.UUID) (LinkView, error) {
+	if _, err := s.store.GetInstitution(ctx, userID, institutionID); err != nil {
+		return LinkView{}, err
+	}
+	exists, err := s.store.LinkExists(ctx, userID, institutionID)
+	if err != nil {
+		return LinkView{}, err
+	}
+	if exists {
+		return LinkView{}, Invalid("this institution is already connected")
+	}
+	return s.store.CreateLink(ctx, CreateLinkParams{UserID: userID, InstitutionID: institutionID})
+}
+
+// DeleteLink detaches the connection's accounts and removes the connection.
+// Accounts and their transactions are kept.
+func (s *Service) DeleteLink(ctx context.Context, userID, linkID uuid.UUID) error {
+	return s.store.DeleteLink(ctx, userID, linkID)
+}
+
+func validInstitutionType(t domain.InstitutionType) bool {
+	switch t {
+	case domain.InstitutionBank, domain.InstitutionWallet, domain.InstitutionOther:
+		return true
+	default:
+		return false
+	}
+}
+
+func validHexColor(c string) bool {
+	if len(c) != 4 && len(c) != 7 {
+		return false
+	}
+	if c[0] != '#' {
+		return false
+	}
+	for _, r := range c[1:] {
+		if !unicode.IsDigit(r) && (r < 'a' || r > 'f') && (r < 'A' || r > 'F') {
+			return false
+		}
+	}
+	return true
 }

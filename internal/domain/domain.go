@@ -38,12 +38,14 @@ const (
 	LinkPending  LinkStatus = "pending"
 )
 
-// Link represents a connection to a bank institution (via an aggregator).
+// Link represents a connection to a bank institution (via an aggregator or
+// maintained manually).
 type Link struct {
 	ID              uuid.UUID  `json:"id"`
 	UserID          uuid.UUID  `json:"user_id"`
 	Provider        string     `json:"provider"`
 	ProviderLinkID  *string    `json:"provider_link_id,omitempty"`
+	InstitutionID   *uuid.UUID `json:"institution_id,omitempty"`
 	Institution     string     `json:"institution"`
 	InstitutionName string     `json:"institution_name"`
 	AccessMode      string     `json:"access_mode"`
@@ -52,6 +54,38 @@ type Link struct {
 	LastSyncError   string     `json:"last_sync_error,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
+}
+
+type InstitutionType string
+
+const (
+	InstitutionBank   InstitutionType = "bank"
+	InstitutionWallet InstitutionType = "wallet"
+	InstitutionOther  InstitutionType = "other"
+)
+
+// Institution is a bank or wallet that accounts and connections are grouped
+// under. System institutions (UserID nil) ship with the app; users can add
+// their own with a custom icon and color.
+type Institution struct {
+	ID                    uuid.UUID       `json:"id"`
+	UserID                *uuid.UUID      `json:"user_id,omitempty"`
+	Provider              string          `json:"provider"`
+	ProviderInstitutionID *string         `json:"provider_institution_id,omitempty"`
+	Slug                  string          `json:"slug"`
+	Name                  string          `json:"name"`
+	DisplayName           string          `json:"display_name"`
+	CountryCode           string          `json:"country_code"`
+	Type                  InstitutionType `json:"type"`
+	Website               string          `json:"website,omitempty"`
+	PrimaryColor          string          `json:"primary_color,omitempty"`
+	LogoURL               string          `json:"logo_url,omitempty"`
+	Icon                  string          `json:"icon,omitempty"`
+	SortOrder             int             `json:"sort_order"`
+	IsSystem              bool            `json:"is_system"`
+	IsActive              bool            `json:"is_active"`
+	CreatedAt             time.Time       `json:"created_at"`
+	UpdatedAt             time.Time       `json:"updated_at"`
 }
 
 type AccountType string

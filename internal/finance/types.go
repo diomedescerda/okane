@@ -16,6 +16,9 @@ import (
 // different user.
 var ErrNotFound = errors.New("not found")
 
+// ErrAlreadyExists is returned when a unique constraint would be violated.
+var ErrAlreadyExists = errors.New("already exists")
+
 // ValidationError describes invalid input and maps to an HTTP 400 response.
 type ValidationError struct{ Message string }
 
@@ -34,6 +37,55 @@ type AccountView struct {
 	domain.Account
 	OpeningBalance   money.Amount `json:"opening_balance"`
 	TransactionCount int64        `json:"transaction_count"`
+
+	// Institution presentation fields joined through the account's connection.
+	InstitutionLogoURL string `json:"institution_logo_url,omitempty"`
+	InstitutionColor   string `json:"institution_color,omitempty"`
+	InstitutionIcon    string `json:"institution_icon,omitempty"`
+	InstitutionType    string `json:"institution_type,omitempty"`
+}
+
+// InstitutionView is a bank or wallet with the number of the user's
+// connections that point at it.
+type InstitutionView struct {
+	domain.Institution
+	LinkCount int64 `json:"link_count"`
+}
+
+// LinkView is a bank connection with denormalized institution presentation
+// fields and the number of accounts attached to it.
+type LinkView struct {
+	domain.Link
+	InstitutionLogoURL string `json:"institution_logo_url,omitempty"`
+	InstitutionColor   string `json:"institution_primary_color,omitempty"`
+	InstitutionIcon    string `json:"institution_icon,omitempty"`
+	InstitutionType    string `json:"institution_type,omitempty"`
+	AccountCount       int64  `json:"account_count"`
+}
+
+// InstitutionFilter selects institutions visible to a user.
+type InstitutionFilter struct {
+	UserID  uuid.UUID
+	Country string
+	Type    *domain.InstitutionType
+	Search  string
+}
+
+// CreateInstitutionParams is the store input for a custom institution.
+type CreateInstitutionParams struct {
+	UserID       uuid.UUID
+	Name         string
+	DisplayName  string
+	Type         domain.InstitutionType
+	Website      string
+	PrimaryColor string
+	Icon         string
+}
+
+// CreateLinkParams is the store input for a connection to an institution.
+type CreateLinkParams struct {
+	UserID        uuid.UUID
+	InstitutionID uuid.UUID
 }
 
 // TransactionView is a transaction with denormalized account and category
@@ -95,6 +147,7 @@ type MonthTotal struct {
 // CreateAccountParams is the store input for creating an account.
 type CreateAccountParams struct {
 	UserID          uuid.UUID
+	LinkID          *uuid.UUID
 	Name            string
 	Type            domain.AccountType
 	Subtype         string
@@ -104,6 +157,8 @@ type CreateAccountParams struct {
 }
 
 // UpdateAccountParams is a partial update; nil fields are left unchanged.
+// SetLink distinguishes "detach the account" (true with a nil LinkID) from
+// "leave the connection unchanged" (false).
 type UpdateAccountParams struct {
 	UserID          uuid.UUID
 	AccountID       uuid.UUID
@@ -114,6 +169,8 @@ type UpdateAccountParams struct {
 	OpeningBalance  *money.Amount
 	InstitutionName *string
 	IsActive        *bool
+	SetLink         bool
+	LinkID          *uuid.UUID
 }
 
 // CreateTransactionParams is the store input for creating a transaction.

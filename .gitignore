@@ -13,8 +13,12 @@ coverage.out
 node_modules/
 web/dist/
 web/.vite/
+*.tsbuildinfo
 npm-debug.log*
 pnpm-debug.log*
+
+# Playwright MCP
+.playwright-mcp/
 
 # Xcode
 ios/build/

@@ -1,143 +1,167 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { ACCOUNT_TYPE_LABELS, financeApi, type Account, type AccountType } from "../api/finance";
 import { ApiError } from "../api/client";
-
+import { ACCOUNT_TYPE_LABELS, financeApi } from "../api/finance";
+import type { Account, AccountPatch, AccountType } from "../api/finance";
 import { Modal } from "./Modal";
-
-type Mode = "create" | "edit";
-
-interface AccountModalProps {
-  account?: Account;
-  onClose: () => void;
-}
 
 const TYPES: AccountType[] = ["checking", "savings", "credit_card", "loan", "investment", "other"];
 
-export function AccountModal({ account, onClose }: AccountModalProps) {
+export function AccountModal({
+  account,
+  defaultLinkId,
+  onClose,
+}: {
+  account?: Account;
+  defaultLinkId?: string;
+  onClose: () => void;
+}) {
+  const editing = Boolean(account);
   const queryClient = useQueryClient();
-  const mode: Mode = account ? "edit" : "create";
-  const manual = !account?.link_id;
+  const linksQuery = useQuery({ queryKey: ["links"], queryFn: financeApi.links });
+  const links = linksQuery.data?.links ?? [];
 
   const [name, setName] = useState(account?.name ?? "");
-  const [type, setType] = useState<AccountType>(account?.type ?? "checking");
-  const [institution, setInstitution] = useState(account?.institution_name ?? "");
-  const [openingBalance, setOpeningBalance] = useState(account ? String(Number(account.opening_balance)) : "0");
+  const [type, setType] = useState(account?.type ?? "checking");
+  const [linkId, setLinkId] = useState(account ? account.link_id ?? "" : defaultLinkId ?? "");
+  const [openingBalance, setOpeningBalance] = useState(
+    account ? String(Number(account.opening_balance)) : "0",
+  );
   const [isActive, setIsActive] = useState(account?.is_active ?? true);
+
+  const manual = linkId === "";
 
   const mutation = useMutation({
     mutationFn: () => {
-      const body = {
+      const link = links.find((l) => l.id === linkId);
+      if (account) {
+        const patch: AccountPatch = { name: name.trim(), type };
+        const initialLinkId = account.link_id ?? "";
+        if (linkId !== initialLinkId) patch.link_id = linkId === "" ? null : linkId;
+        if (manual) {
+          patch.opening_balance = openingBalance;
+        }
+        if (isActive !== account.is_active) patch.is_active = isActive;
+        return financeApi.updateAccount(account.id, patch);
+      }
+      return financeApi.createAccount({
         name: name.trim(),
         type,
-        institution_name: institution.trim(),
-        ...(manual ? { opening_balance: openingBalance.trim() || "0" } : {}),
-        ...(mode === "edit" ? { is_active: isActive } : {}),
-      };
-      return mode === "create"
-        ? financeApi.createAccount(body)
-        : financeApi.updateAccount(account!.id, body);
+        link_id: link?.id,
+        institution_name: link?.institution_name,
+        opening_balance: manual ? openingBalance : undefined,
+      });
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["accounts"] });
-      void queryClient.invalidateQueries({ queryKey: ["summary"] });
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["summary"] });
+      queryClient.invalidateQueries({ queryKey: ["links"] });
       onClose();
     },
   });
 
-  function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    if (!mutation.isPending) mutation.mutate();
-  }
-
   const error = mutation.error instanceof ApiError ? mutation.error.message : null;
 
   return (
-    <Modal
-      title={mode === "create" ? "New account" : "Edit account"}
-      onClose={onClose}
-      footer={
-        <>
-          <button type="button" className="btn-secondary" onClick={onClose}>
-            Cancel
-          </button>
-          <button type="submit" form="account-form" className="btn-primary" disabled={mutation.isPending}>
-            {mutation.isPending ? "Saving…" : mode === "create" ? "Create account" : "Save changes"}
-          </button>
-        </>
-      }
-    >
-      <form id="account-form" onSubmit={onSubmit} className="space-y-4">
-        <label className="block">
-          <span className="label">Name</span>
+    <Modal title={editing ? "Edit account" : "Add account"} onClose={onClose}>
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          mutation.mutate();
+        }}
+      >
+        <div>
+          <label className="label" htmlFor="account-name">
+            Name
+          </label>
           <input
+            id="account-name"
             className="input"
             value={name}
-            onChange={(event) => setName(event.target.value)}
+            onChange={(e) => setName(e.target.value)}
             placeholder="BBVA Nómina"
-            autoFocus
-            required
             maxLength={80}
+            autoFocus
           />
-        </label>
+        </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <label className="block">
-            <span className="label">Type</span>
-            <select className="input" value={type} onChange={(event) => setType(event.target.value as AccountType)}>
+          <div>
+            <label className="label" htmlFor="account-type">
+              Type
+            </label>
+            <select id="account-type" className="input" value={type} onChange={(e) => setType(e.target.value as AccountType)}>
               {TYPES.map((t) => (
                 <option key={t} value={t}>
-                  {ACCOUNT_TYPE_LABELS[t]}
+                  {ACCOUNT_TYPE_LABELS[t] ?? t}
                 </option>
               ))}
             </select>
-          </label>
-          <label className="block">
-            <span className="label">Institution</span>
-            <input
+          </div>
+          <div>
+            <label className="label" htmlFor="account-bank">
+              Bank
+            </label>
+            <select
+              id="account-bank"
               className="input"
-              value={institution}
-              onChange={(event) => setInstitution(event.target.value)}
-              placeholder="BBVA"
-              maxLength={80}
-            />
-          </label>
+              value={linkId}
+              onChange={(e) => setLinkId(e.target.value)}
+              disabled={linksQuery.isLoading}
+            >
+              <option value="">No bank (manual)</option>
+              {links.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.institution_name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        {manual && (
-          <label className="block">
-            <span className="label">Opening balance</span>
+        {manual ? (
+          <div>
+            <label className="label" htmlFor="account-opening">
+              Opening balance
+            </label>
             <input
+              id="account-opening"
               className="input"
+              type="number"
+              step="0.01"
               value={openingBalance}
-              onChange={(event) => setOpeningBalance(event.target.value)}
-              inputMode="decimal"
-              placeholder="0.00"
+              onChange={(e) => setOpeningBalance(e.target.value)}
             />
-            <span className="mt-1 block text-xs text-slate-500">
-              {mode === "create"
-                ? "Starting balance before any tracked transactions."
-                : "The current balance is this plus the sum of tracked transactions."}
-            </span>
+            <p className="mt-1 text-xs text-slate-500">
+              The balance you had before starting to track this account.
+            </p>
+          </div>
+        ) : (
+          <p className="rounded-lg bg-slate-900 px-3 py-2 text-xs text-slate-400">
+            Linked accounts take their balance from the bank. You can connect a bank from the Banks
+            page.
+          </p>
+        )}
+
+        {editing && (
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+            Active
           </label>
         )}
 
-        {mode === "edit" && (
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={isActive}
-              onChange={(event) => setIsActive(event.target.checked)}
-              className="h-4 w-4 accent-emerald-500"
-            />
-            Active (include in net worth and summaries)
-          </label>
-        )}
+        {error && <p className="text-sm text-rose-400">{error}</p>}
 
-        {error && (
-          <p className="rounded-lg border border-rose-900/60 bg-rose-950/40 px-3 py-2 text-sm text-rose-300">{error}</p>
-        )}
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" className="btn-ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn-primary" disabled={!name.trim() || mutation.isPending}>
+            {mutation.isPending ? "Saving…" : editing ? "Save changes" : "Add account"}
+          </button>
+        </div>
       </form>
     </Modal>
   );

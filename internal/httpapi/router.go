@@ -72,6 +72,18 @@ func NewRouter(cfg *config.Config, pool *pgxpool.Pool, authSvc *auth.Service, fi
 				r.Delete("/{transactionID}", fh.DeleteTransaction)
 			})
 
+			r.Route("/institutions", func(r chi.Router) {
+				r.Get("/", fh.ListInstitutions)
+				r.Post("/", fh.CreateInstitution)
+				r.Delete("/{institutionID}", fh.DeleteInstitution)
+			})
+
+			r.Route("/links", func(r chi.Router) {
+				r.Get("/", fh.ListLinks)
+				r.Post("/", fh.CreateLink)
+				r.Delete("/{linkID}", fh.DeleteLink)
+			})
+
 			r.Get("/summary", fh.Summary)
 			r.Get("/summary/months", fh.MonthlyTotals)
 		})

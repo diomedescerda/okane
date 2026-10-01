@@ -22,7 +22,7 @@ export function DashboardPage() {
   const summary = summaryQuery.data;
   const months = monthsQuery.data?.months ?? [];
   const recent = recentQuery.data?.transactions ?? [];
-  const currency = accounts[0]?.currency ?? "MXN";
+  const currency = accounts[0]?.currency ?? "COP";
 
   const expenseTotals = (summary?.by_category ?? []).filter((c) => c.direction === "out");
   const maxExpense = Math.max(1, ...expenseTotals.map((c) => Math.abs(Number(c.total))));

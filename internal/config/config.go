@@ -61,7 +61,7 @@ func Load() (*Config, error) {
 		SessionTTL:          envDuration("OKANE_SESSION_TTL", 30*24*time.Hour),
 		SessionCookieSecure: envBool("OKANE_SESSION_COOKIE_SECURE", false),
 
-		Timezone: env("OKANE_TIMEZONE", "America/Mexico_City"),
+		Timezone: env("OKANE_TIMEZONE", "America/Bogota"),
 
 		BelvoEnv:      env("OKANE_BELVO_ENV", "sandbox"),
 		BelvoSecretID: env("OKANE_BELVO_SECRET_ID", ""),

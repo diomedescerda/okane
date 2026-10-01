@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -29,6 +30,8 @@ func (h *financeHandler) fail(w http.ResponseWriter, r *http.Request, err error)
 		writeError(w, http.StatusBadRequest, "validation", ve.Message)
 	case errors.Is(err, finance.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not_found", "resource not found")
+	case errors.Is(err, finance.ErrAlreadyExists):
+		writeError(w, http.StatusConflict, "conflict", "resource already exists")
 	default:
 		h.log.ErrorContext(r.Context(), "finance_request_failed",
 			"error", err, "method", r.Method, "path", r.URL.Path)
@@ -82,22 +85,46 @@ func queryInt(r *http.Request, key string, def int) (int, error) {
 
 // --- Accounts ---
 
+// nullableString distinguishes a missing JSON key from an explicit null value.
+// With a plain **string both cases arrive as an outer nil, so patch requests
+// could never clear a field.
+type nullableString struct {
+	Present bool
+	Value   *string
+}
+
+func (n *nullableString) UnmarshalJSON(data []byte) error {
+	n.Present = true
+	if string(data) == "null" {
+		n.Value = nil
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	n.Value = &s
+	return nil
+}
+
 type accountRequest struct {
 	Name            string        `json:"name"`
 	Type            string        `json:"type"`
 	Currency        string        `json:"currency"`
 	OpeningBalance  *money.Amount `json:"opening_balance"`
 	InstitutionName string        `json:"institution_name"`
+	LinkID          *string       `json:"link_id"`
 }
 
 type accountPatchRequest struct {
-	Name            *string       `json:"name"`
-	Type            *string       `json:"type"`
-	Subtype         *string       `json:"subtype"`
-	Currency        *string       `json:"currency"`
-	OpeningBalance  *money.Amount `json:"opening_balance"`
-	InstitutionName *string       `json:"institution_name"`
-	IsActive        *bool         `json:"is_active"`
+	Name            *string        `json:"name"`
+	Type            *string        `json:"type"`
+	Subtype         *string        `json:"subtype"`
+	Currency        *string        `json:"currency"`
+	OpeningBalance  *money.Amount  `json:"opening_balance"`
+	InstitutionName *string        `json:"institution_name"`
+	IsActive        *bool          `json:"is_active"`
+	LinkID          nullableString `json:"link_id"`
 }
 
 func (h *financeHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
@@ -124,12 +151,23 @@ func (h *financeHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 		opening = *req.OpeningBalance
 	}
 
+	var linkID *uuid.UUID
+	if req.LinkID != nil {
+		id, err := uuid.Parse(*req.LinkID)
+		if err != nil {
+			h.fail(w, r, finance.Invalid("link_id must be a valid UUID"))
+			return
+		}
+		linkID = &id
+	}
+
 	account, err := h.svc.CreateAccount(r.Context(), user.ID, finance.NewAccount{
 		Name:            req.Name,
 		Type:            req.Type,
 		Currency:        req.Currency,
 		OpeningBalance:  opening,
 		InstitutionName: req.InstitutionName,
+		LinkID:          linkID,
 	})
 	if err != nil {
 		h.fail(w, r, err)
@@ -167,6 +205,22 @@ func (h *financeHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var linkID **uuid.UUID
+	if req.LinkID.Present {
+		if req.LinkID.Value == nil {
+			var detach *uuid.UUID
+			linkID = &detach
+		} else {
+			id, err := uuid.Parse(strings.TrimSpace(*req.LinkID.Value))
+			if err != nil {
+				h.fail(w, r, finance.Invalid("link_id must be a valid UUID"))
+				return
+			}
+			attach := &id
+			linkID = &attach
+		}
+	}
+
 	account, err := h.svc.UpdateAccount(r.Context(), user.ID, accountID, finance.AccountPatch{
 		Name:            req.Name,
 		Type:            req.Type,
@@ -175,6 +229,7 @@ func (h *financeHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 		OpeningBalance:  req.OpeningBalance,
 		InstitutionName: req.InstitutionName,
 		IsActive:        req.IsActive,
+		LinkID:          linkID,
 	})
 	if err != nil {
 		h.fail(w, r, err)
@@ -225,15 +280,15 @@ type transactionRequest struct {
 }
 
 type transactionPatchRequest struct {
-	AccountID   *string       `json:"account_id"`
-	CategoryID  **string      `json:"category_id"`
-	Description *string       `json:"description"`
-	Merchant    **string      `json:"merchant"`
-	Amount      *money.Amount `json:"amount"`
-	Direction   *string       `json:"direction"`
-	OccurredAt  *time.Time    `json:"occurred_at"`
-	Status      *string       `json:"status"`
-	Notes       **string      `json:"notes"`
+	AccountID   *string        `json:"account_id"`
+	CategoryID  nullableString `json:"category_id"`
+	Description *string        `json:"description"`
+	Merchant    nullableString `json:"merchant"`
+	Amount      *money.Amount  `json:"amount"`
+	Direction   *string        `json:"direction"`
+	OccurredAt  *time.Time     `json:"occurred_at"`
+	Status      *string        `json:"status"`
+	Notes       nullableString `json:"notes"`
 }
 
 func (h *financeHandler) ListTransactions(w http.ResponseWriter, r *http.Request) {
@@ -360,10 +415,14 @@ func (h *financeHandler) UpdateTransaction(w http.ResponseWriter, r *http.Reques
 
 	patch := finance.TransactionPatch{
 		Description: req.Description,
-		Merchant:    req.Merchant,
 		Amount:      req.Amount,
 		OccurredAt:  req.OccurredAt,
-		Notes:       req.Notes,
+	}
+	if req.Merchant.Present {
+		patch.Merchant = &req.Merchant.Value
+	}
+	if req.Notes.Present {
+		patch.Notes = &req.Notes.Value
 	}
 	if req.AccountID != nil {
 		accountID, err := uuid.Parse(strings.TrimSpace(*req.AccountID))
@@ -373,12 +432,12 @@ func (h *financeHandler) UpdateTransaction(w http.ResponseWriter, r *http.Reques
 		}
 		patch.AccountID = &accountID
 	}
-	if req.CategoryID != nil {
-		if *req.CategoryID == nil {
+	if req.CategoryID.Present {
+		if req.CategoryID.Value == nil {
 			var nilID *uuid.UUID
 			patch.CategoryID = &nilID
 		} else {
-			categoryID, err := uuid.Parse(strings.TrimSpace(**req.CategoryID))
+			categoryID, err := uuid.Parse(strings.TrimSpace(*req.CategoryID.Value))
 			if err != nil {
 				h.fail(w, r, finance.Invalid("category_id must be a valid UUID"))
 				return
@@ -468,4 +527,124 @@ func (h *financeHandler) MonthlyTotals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"months": totals})
+}
+
+// --- Institutions ---
+
+type institutionRequest struct {
+	DisplayName  string `json:"display_name"`
+	Type         string `json:"type"`
+	Website      string `json:"website"`
+	PrimaryColor string `json:"primary_color"`
+	Icon         string `json:"icon"`
+}
+
+func (h *financeHandler) ListInstitutions(w http.ResponseWriter, r *http.Request) {
+	user, _ := UserFromContext(r.Context())
+
+	filter := finance.InstitutionFilter{
+		Country: strings.TrimSpace(r.URL.Query().Get("country")),
+		Search:  strings.TrimSpace(r.URL.Query().Get("search")),
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("type")); raw != "" {
+		t := domain.InstitutionType(raw)
+		filter.Type = &t
+	}
+
+	institutions, err := h.svc.ListInstitutions(r.Context(), user.ID, filter)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"institutions": institutions})
+}
+
+func (h *financeHandler) CreateInstitution(w http.ResponseWriter, r *http.Request) {
+	user, _ := UserFromContext(r.Context())
+
+	var req institutionRequest
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+
+	institution, err := h.svc.CreateInstitution(r.Context(), user.ID, finance.NewInstitution{
+		DisplayName:  req.DisplayName,
+		Type:         req.Type,
+		Website:      req.Website,
+		PrimaryColor: req.PrimaryColor,
+		Icon:         req.Icon,
+	})
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, institution)
+}
+
+func (h *financeHandler) DeleteInstitution(w http.ResponseWriter, r *http.Request) {
+	user, _ := UserFromContext(r.Context())
+	institutionID, err := urlUUID(r, "institutionID")
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	if err := h.svc.DeleteInstitution(r.Context(), user.ID, institutionID); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// --- Connections ---
+
+func (h *financeHandler) ListLinks(w http.ResponseWriter, r *http.Request) {
+	user, _ := UserFromContext(r.Context())
+	links, err := h.svc.ListLinks(r.Context(), user.ID)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"links": links})
+}
+
+type linkRequest struct {
+	InstitutionID string `json:"institution_id"`
+}
+
+func (h *financeHandler) CreateLink(w http.ResponseWriter, r *http.Request) {
+	user, _ := UserFromContext(r.Context())
+
+	var req linkRequest
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+
+	institutionID, err := uuid.Parse(strings.TrimSpace(req.InstitutionID))
+	if err != nil {
+		h.fail(w, r, finance.Invalid("institution_id must be a valid UUID"))
+		return
+	}
+
+	link, err := h.svc.CreateLink(r.Context(), user.ID, institutionID)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, link)
+}
+
+func (h *financeHandler) DeleteLink(w http.ResponseWriter, r *http.Request) {
+	user, _ := UserFromContext(r.Context())
+	linkID, err := urlUUID(r, "linkID")
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	if err := h.svc.DeleteLink(r.Context(), user.ID, linkID); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

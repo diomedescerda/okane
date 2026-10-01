@@ -3,6 +3,7 @@ import { api } from "./client";
 export type AccountType = "checking" | "savings" | "credit_card" | "loan" | "investment" | "other";
 export type Direction = "in" | "out";
 export type CategoryKind = "expense" | "income" | "transfer";
+export type InstitutionType = "bank" | "wallet" | "other";
 
 export interface Account {
   id: string;
@@ -18,10 +19,69 @@ export interface Account {
   balance_available?: string;
   credit_limit?: string;
   institution_name: string;
+  institution_logo_url?: string;
+  institution_color?: string;
+  institution_icon?: string;
+  institution_type?: InstitutionType;
   is_active: boolean;
   transaction_count: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface Institution {
+  id: string;
+  user_id?: string;
+  provider: string;
+  slug: string;
+  name: string;
+  display_name: string;
+  country_code: string;
+  type: InstitutionType;
+  website: string;
+  primary_color: string;
+  logo_url: string;
+  icon: string;
+  sort_order: number;
+  is_system: boolean;
+  is_active: boolean;
+  link_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Link {
+  id: string;
+  user_id: string;
+  provider: string;
+  institution_id?: string;
+  institution: string;
+  institution_name: string;
+  access_mode: string;
+  status: string;
+  last_sync_at?: string;
+  last_sync_error: string;
+  institution_logo_url?: string;
+  institution_primary_color?: string;
+  institution_icon?: string;
+  institution_type?: InstitutionType;
+  account_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NewInstitution {
+  display_name: string;
+  type: InstitutionType;
+  website?: string;
+  primary_color?: string;
+  icon?: string;
+}
+
+export interface InstitutionQuery {
+  type?: InstitutionType | "";
+  search?: string;
+  country?: string;
 }
 
 export interface Category {
@@ -112,6 +172,7 @@ export interface NewAccount {
   currency?: string;
   opening_balance?: string;
   institution_name?: string;
+  link_id?: string;
 }
 
 export interface AccountPatch {
@@ -120,6 +181,7 @@ export interface AccountPatch {
   opening_balance?: string;
   institution_name?: string;
   is_active?: boolean;
+  link_id?: string | null;
 }
 
 export interface NewTransaction {
@@ -173,6 +235,21 @@ export const financeApi = {
 
   categories: () => api.get<{ categories: Category[] }>("/api/v1/categories"),
 
+  institutions: (query: InstitutionQuery = {}) => {
+    const params = new URLSearchParams();
+    if (query.type) params.set("type", query.type);
+    if (query.search) params.set("search", query.search);
+    if (query.country) params.set("country", query.country);
+    const qs = params.toString();
+    return api.get<{ institutions: Institution[] }>(`/api/v1/institutions${qs ? `?${qs}` : ""}`);
+  },
+  createInstitution: (body: NewInstitution) => api.post<Institution>("/api/v1/institutions", body),
+  deleteInstitution: (id: string) => api.delete<void>(`/api/v1/institutions/${id}`),
+
+  links: () => api.get<{ links: Link[] }>("/api/v1/links"),
+  createLink: (institutionId: string) => api.post<Link>("/api/v1/links", { institution_id: institutionId }),
+  deleteLink: (id: string) => api.delete<void>(`/api/v1/links/${id}`),
+
   transactions: (query: TransactionQuery = {}) =>
     api.get<TransactionList>(`/api/v1/transactions${queryString(query)}`),
   createTransaction: (body: NewTransaction) => api.post<Transaction>("/api/v1/transactions", body),
@@ -196,6 +273,12 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   credit_card: "Credit card",
   loan: "Loan",
   investment: "Investment",
+  other: "Other",
+};
+
+export const INSTITUTION_TYPE_LABELS: Record<InstitutionType, string> = {
+  bank: "Bank",
+  wallet: "Wallet",
   other: "Other",
 };
 

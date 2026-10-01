@@ -6,6 +6,7 @@ import { ACCOUNT_TYPE_LABELS, financeApi, type Account } from "../api/finance";
 import { ApiError } from "../api/client";
 import { AccountModal } from "../components/AccountModal";
 import { AppLayout } from "../components/AppLayout";
+import { InstitutionIcon } from "../components/InstitutionIcon";
 import { formatMoney } from "../lib/format";
 
 const TYPE_ICONS: Record<string, string> = {
@@ -67,8 +68,11 @@ export function AccountsPage() {
             <div className="text-3xl">🏦</div>
             <h2 className="mt-3 text-lg font-medium">No accounts yet</h2>
             <p className="mx-auto mt-1 max-w-md text-sm text-slate-400">
-              Add the accounts you want to track. Bank connections arrive in the next milestone; for now you can add
-              them manually.
+              Add the accounts you want to track. Connect a bank from the{" "}
+              <Link to="/banks" className="text-emerald-400 hover:text-emerald-300">
+                Banks
+              </Link>{" "}
+              page or add them manually.
             </p>
             <button className="btn-primary mt-4" onClick={() => setModal({})}>
               Add your first account
@@ -91,7 +95,17 @@ export function AccountsPage() {
                   <tr key={account.id} className={account.is_active ? "" : "opacity-50"}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2 font-medium">
-                        <span>{TYPE_ICONS[account.type] ?? "💼"}</span>
+                        {account.link_id ? (
+                          <InstitutionIcon
+                            name={account.institution_name || account.name}
+                            logoUrl={account.institution_logo_url}
+                            icon={account.institution_icon}
+                            color={account.institution_color}
+                            size="sm"
+                          />
+                        ) : (
+                          <span aria-hidden>{TYPE_ICONS[account.type] ?? "💼"}</span>
+                        )}
                         {account.name}
                         {!account.is_active && <span className="text-xs text-slate-500">(inactive)</span>}
                       </div>

@@ -3,9 +3,9 @@
 Personal finance tracker: expenses and income from your bank accounts, spending
 by category, and AI insights — on the web and on iPhone.
 
-> Status: **foundation**. Auth, database schema and deploy plumbing are in
-> place; accounts, transactions, bank sync and AI insights are next (see the
-> roadmap below).
+> Status: **accounting core**. Auth, accounts, transactions, categories and
+> Colombian banks are in place; statement import, AI insights and the iOS app
+> are next (see the roadmap below).
 
 ## Stack
 
@@ -14,12 +14,12 @@ by category, and AI insights — on the web and on iPhone.
 | API        | Go 1.27, chi, pgx, Postgres 17, goose migrations (embedded in the binary) |
 | Web        | React 19 + Vite + Tailwind CSS 4 + TanStack Query                      |
 | iOS        | SwiftUI app talking to the same API (planned)                          |
-| Banks      | [Belvo](https://belvo.com) aggregation (Mexico/LatAm), sandbox first   |
+| Banks      | 19 Colombian banks/wallets built in; accounts attach to a bank connection. [Belvo](https://belvo.com) aggregation (paid) is a future option |
 | AI         | OpenCode Inference (OpenAI-compatible) with your Console key           |
 | Deployment | Docker Compose on a VPS: Postgres + API + Caddy (TLS) + daily backups  |
 
 Money is stored as `numeric(20,4)` in Postgres and handled as decimals, never
-floats.
+floats. Amounts are in Colombian pesos (COP) by default.
 
 ## Layout
 
@@ -69,10 +69,16 @@ The API returns a session token (for the iOS app) and sets an HttpOnly cookie
 | POST   | `/api/v1/auth/logout`       | Revoke current session               |
 | GET    | `/api/v1/auth/me`           | Current user                         |
 | GET    | `/api/v1/accounts`          | List accounts with live balances     |
-| POST   | `/api/v1/accounts`          | Create a manual account              |
-| PATCH  | `/api/v1/accounts/{id}`     | Update account                       |
+| POST   | `/api/v1/accounts`          | Create a manual account (optionally attach to a bank via `link_id`) |
+| PATCH  | `/api/v1/accounts/{id}`     | Update account (`link_id: null` detaches it) |
 | DELETE | `/api/v1/accounts/{id}`     | Delete account (cascades its transactions) |
 | GET    | `/api/v1/categories`        | List system + user categories        |
+| GET    | `/api/v1/institutions`      | List banks/wallets (`type`, `search`, `country`) |
+| POST   | `/api/v1/institutions`      | Add a custom institution (name, color, emoji icon) |
+| DELETE | `/api/v1/institutions/{id}` | Delete a custom institution (detaches its accounts) |
+| GET    | `/api/v1/links`             | List bank connections                |
+| POST   | `/api/v1/links`             | Connect to an institution (`institution_id`) |
+| DELETE | `/api/v1/links/{id}`        | Remove a connection; its accounts are kept and detached |
 | GET    | `/api/v1/transactions`      | List/filter (`account_id`, `category_id`, `direction`, `search`, `from`, `to`, `limit`, `offset`) |
 | POST   | `/api/v1/transactions`      | Create transaction (amount is positive; direction sets sign) |
 | PATCH  | `/api/v1/transactions/{id}` | Update transaction (`null` clears category/merchant/notes) |
@@ -95,7 +101,7 @@ Highlights:
 | `OKANE_APP_URL`               | `http://localhost:5173`                             | Web origin (CORS + CSRF origin)    |
 | `OKANE_SESSION_TTL`           | `720h`                                              | Session lifetime                   |
 | `OKANE_SESSION_COOKIE_SECURE` | `false`                                             | Set `true` behind HTTPS            |
-| `OKANE_TIMEZONE`              | `America/Mexico_City`                               | IANA timezone for month boundaries |
+| `OKANE_TIMEZONE`              | `America/Bogota`                                    | IANA timezone for month boundaries |
 | `OKANE_BELVO_ENV`             | `sandbox`                                           | `sandbox` or `production`          |
 | `OKANE_AI_BASE_URL`           | `https://opencode.ai/inference/openai/v1`           | OpenAI-compatible endpoint         |
 | `OKANE_AI_API_KEY`            | —                                                   | OpenCode Console service key       |
@@ -131,8 +137,11 @@ advisory lock, so it is safe to restart or scale).
 
 - [x] Foundation: repo, schema, migrations, config, auth, web shell, deploy
 - [x] Accounts + transactions: CRUD, categories, dashboard (rules TBD)
-- [ ] Belvo: link flow (sandbox `erebus` first), sync worker, webhooks, dedupe
-- [ ] CSV/OFX import so the app is useful without aggregation
+- [x] Banks: Colombian institutions with logos, custom institutions, connections
+  (adding an account to a bank, detaching accounts without losing data)
+- [ ] CSV/OFX import so the app is useful without aggregation (next)
+- [ ] Belvo aggregation (production access is paid): link flow, sync worker,
+  webhooks, dedupe
 - [ ] AI: categorization fallback, monthly digest, anomalies, Q&A over your data
 - [ ] iOS: SwiftUI app (login, dashboard, transactions, bank linking)
 - [ ] Budgets and recurring-charge detection
@@ -140,8 +149,9 @@ advisory lock, so it is safe to restart or scale).
 
 ## Notes
 
-- Belvo sandbox is free and includes fake Mexican banks, so the full sync flow
-  can be developed without real credentials. Production access requires Belvo
-  to enable it for your account.
+- Bank aggregation through Belvo is paused: the sandbox is free (fake data),
+  but production access is a paid B2B service. The zero-cost path for real bank
+  data is statement import (CSV/OFX), which is the next milestone; the provider
+  seam in the schema stays ready for Belvo or another aggregator later.
 - On Linux, if `docker` says permission denied, log out and back in (or use
   `newgrp docker`) after being added to the `docker` group.

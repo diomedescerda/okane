@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kenma/okane/internal/domain"
@@ -27,14 +28,17 @@ const accountSelect = `
 	SELECT
 		a.id, a.user_id, a.link_id, a.provider, a.provider_account_id, a.name, a.type, a.subtype,
 		a.currency,
-		CASE WHEN a.link_id IS NULL
+		CASE WHEN a.provider = 'manual'
 		     THEN a.balance_current + COALESCE((SELECT sum(t.amount) FROM transactions t WHERE t.account_id = a.id), 0)
 		     ELSE a.balance_current
 		END AS current_balance,
 		a.balance_current, a.balance_available, a.credit_limit, a.institution_name, a.is_active,
 		a.last_synced_at, a.created_at, a.updated_at,
-		(SELECT count(*) FROM transactions t WHERE t.account_id = a.id) AS transaction_count
-	FROM accounts a`
+		(SELECT count(*) FROM transactions t WHERE t.account_id = a.id) AS transaction_count,
+		COALESCE(i.logo_url, ''), COALESCE(i.primary_color, ''), COALESCE(i.icon, ''), COALESCE(i.type, '')
+	FROM accounts a
+	LEFT JOIN links l ON l.id = a.link_id
+	LEFT JOIN institutions i ON i.id = l.institution_id`
 
 func scanAccountView(row pgx.Row) (AccountView, error) {
 	var (
@@ -46,6 +50,7 @@ func scanAccountView(row pgx.Row) (AccountView, error) {
 		&v.ID, &v.UserID, &v.LinkID, &v.Provider, &v.ProviderAccount, &v.Name, &v.Type, &v.Subtype,
 		&v.Currency, &current, &v.OpeningBalance, &available, &creditLimit, &v.InstitutionName,
 		&v.IsActive, &v.LastSyncedAt, &v.CreatedAt, &v.UpdatedAt, &v.TransactionCount,
+		&v.InstitutionLogoURL, &v.InstitutionColor, &v.InstitutionIcon, &v.InstitutionType,
 	)
 	if err != nil {
 		return AccountView{}, err
@@ -90,13 +95,13 @@ func (s *Store) GetAccount(ctx context.Context, userID, accountID uuid.UUID) (Ac
 
 func (s *Store) CreateAccount(ctx context.Context, p CreateAccountParams) (AccountView, error) {
 	const q = `
-		INSERT INTO accounts (user_id, provider, name, type, subtype, currency, balance_current, institution_name)
-		VALUES ($1, 'manual', $2, $3, $4, $5, $6, $7)
+		INSERT INTO accounts (user_id, link_id, provider, name, type, subtype, currency, balance_current, institution_name)
+		VALUES ($1, $2, 'manual', $3, $4, $5, $6, $7, $8)
 		RETURNING id`
 
 	var id uuid.UUID
 	err := s.pool.QueryRow(ctx, q,
-		p.UserID, p.Name, p.Type, p.Subtype, p.Currency, p.OpeningBalance, p.InstitutionName,
+		p.UserID, p.LinkID, p.Name, p.Type, p.Subtype, p.Currency, p.OpeningBalance, p.InstitutionName,
 	).Scan(&id)
 	if err != nil {
 		return AccountView{}, fmt.Errorf("insert account: %w", err)
@@ -113,12 +118,13 @@ func (s *Store) UpdateAccount(ctx context.Context, p UpdateAccountParams) (Accou
 			currency = COALESCE($6, currency),
 			balance_current = COALESCE($7, balance_current),
 			institution_name = COALESCE($8, institution_name),
-			is_active = COALESCE($9, is_active)
+			is_active = COALESCE($9, is_active),
+			link_id = CASE WHEN $10 THEN $11::uuid ELSE link_id END
 		WHERE user_id = $1 AND id = $2`
 
 	tag, err := s.pool.Exec(ctx, q,
 		p.UserID, p.AccountID, p.Name, p.Type, p.Subtype, p.Currency,
-		p.OpeningBalance, p.InstitutionName, p.IsActive,
+		p.OpeningBalance, p.InstitutionName, p.IsActive, p.SetLink, p.LinkID,
 	)
 	if err != nil {
 		return AccountView{}, fmt.Errorf("update account: %w", err)
@@ -383,7 +389,7 @@ func (s *Store) SummaryTotals(ctx context.Context, userID uuid.UUID, from, to ti
 
 	const worthQ = `
 		SELECT COALESCE(sum(
-			CASE WHEN a.link_id IS NULL
+			CASE WHEN a.provider = 'manual'
 			     THEN a.balance_current + COALESCE(x.total, 0)
 			     ELSE a.balance_current
 			END
@@ -462,4 +468,243 @@ func (s *Store) MonthlyTotals(ctx context.Context, userID uuid.UUID, from time.T
 		totals = append(totals, t)
 	}
 	return totals, rows.Err()
+}
+
+// --- Institutions ---
+
+const institutionSelect = `
+	SELECT
+		i.id, i.user_id, i.provider, i.provider_institution_id, i.slug, i.name, i.display_name,
+		i.country_code, i.type, i.website, i.primary_color, i.logo_url, i.icon, i.sort_order,
+		i.is_system, i.is_active, i.created_at, i.updated_at,
+		(SELECT count(*) FROM links l WHERE l.user_id = $1 AND l.institution_id = i.id) AS link_count
+	FROM institutions i`
+
+func scanInstitutionView(row pgx.Row) (InstitutionView, error) {
+	var v InstitutionView
+	err := row.Scan(
+		&v.ID, &v.UserID, &v.Provider, &v.ProviderInstitutionID, &v.Slug, &v.Name, &v.DisplayName,
+		&v.CountryCode, &v.Type, &v.Website, &v.PrimaryColor, &v.LogoURL, &v.Icon, &v.SortOrder,
+		&v.IsSystem, &v.IsActive, &v.CreatedAt, &v.UpdatedAt, &v.LinkCount,
+	)
+	if err != nil {
+		return InstitutionView{}, err
+	}
+	return v, nil
+}
+
+// ListInstitutions returns system institutions plus the user's own.
+func (s *Store) ListInstitutions(ctx context.Context, f InstitutionFilter) ([]InstitutionView, error) {
+	where := []string{"i.is_active", "(i.user_id IS NULL OR i.user_id = $1)"}
+	args := []any{f.UserID}
+	add := func(cond string, val any) {
+		args = append(args, val)
+		where = append(where, fmt.Sprintf(cond, len(args)))
+	}
+	if f.Country != "" {
+		add("i.country_code = $%d", strings.ToUpper(f.Country))
+	}
+	if f.Type != nil {
+		add("i.type = $%d", *f.Type)
+	}
+	if search := strings.TrimSpace(f.Search); search != "" {
+		add("i.display_name ILIKE $%d", "%"+search+"%")
+	}
+
+	q := institutionSelect + " WHERE " + strings.Join(where, " AND ") + " ORDER BY i.sort_order, i.display_name"
+	rows, err := s.pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list institutions: %w", err)
+	}
+	defer rows.Close()
+
+	institutions := make([]InstitutionView, 0)
+	for rows.Next() {
+		v, err := scanInstitutionView(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan institution: %w", err)
+		}
+		institutions = append(institutions, v)
+	}
+	return institutions, rows.Err()
+}
+
+// GetInstitution returns one institution visible to the user.
+func (s *Store) GetInstitution(ctx context.Context, userID, institutionID uuid.UUID) (InstitutionView, error) {
+	v, err := scanInstitutionView(s.pool.QueryRow(ctx, institutionSelect+`
+		WHERE i.id = $2 AND (i.user_id IS NULL OR i.user_id = $1)`, userID, institutionID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return InstitutionView{}, ErrNotFound
+	}
+	if err != nil {
+		return InstitutionView{}, fmt.Errorf("get institution: %w", err)
+	}
+	return v, nil
+}
+
+// CreateInstitution inserts a custom institution owned by the user.
+func (s *Store) CreateInstitution(ctx context.Context, p CreateInstitutionParams) (InstitutionView, error) {
+	const q = `
+		INSERT INTO institutions (user_id, name, display_name, type, website, primary_color, icon)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id`
+
+	var id uuid.UUID
+	err := s.pool.QueryRow(ctx, q,
+		p.UserID, p.Name, p.DisplayName, p.Type, p.Website, p.PrimaryColor, p.Icon,
+	).Scan(&id)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return InstitutionView{}, ErrAlreadyExists
+		}
+		return InstitutionView{}, fmt.Errorf("insert institution: %w", err)
+	}
+	return s.GetInstitution(ctx, p.UserID, id)
+}
+
+// DeleteInstitution removes a custom institution, detaching the accounts of
+// the user's connections to it first. System institutions cannot be deleted.
+func (s *Store) DeleteInstitution(ctx context.Context, userID, institutionID uuid.UUID) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin delete institution: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var owned bool
+	err = tx.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM institutions WHERE id = $1 AND user_id = $2)`,
+		institutionID, userID).Scan(&owned)
+	if err != nil {
+		return fmt.Errorf("check institution owner: %w", err)
+	}
+	if !owned {
+		return ErrNotFound
+	}
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE accounts SET link_id = NULL
+		WHERE user_id = $1 AND link_id IN (
+			SELECT id FROM links WHERE user_id = $1 AND institution_id = $2
+		)`, userID, institutionID); err != nil {
+		return fmt.Errorf("detach institution accounts: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM links WHERE user_id = $1 AND institution_id = $2`, userID, institutionID); err != nil {
+		return fmt.Errorf("delete institution links: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM institutions WHERE id = $1 AND user_id = $2`, institutionID, userID); err != nil {
+		return fmt.Errorf("delete institution: %w", err)
+	}
+	return tx.Commit(ctx)
+}
+
+// --- Links (bank connections) ---
+
+const linkSelect = `
+	SELECT
+		l.id, l.user_id, l.provider, l.provider_link_id, l.institution_id, l.institution, l.institution_name,
+		l.access_mode, l.status, l.last_sync_at, l.last_sync_error, l.created_at, l.updated_at,
+		COALESCE(i.logo_url, ''), COALESCE(i.primary_color, ''), COALESCE(i.icon, ''), COALESCE(i.type, ''),
+		(SELECT count(*) FROM accounts a WHERE a.link_id = l.id) AS account_count
+	FROM links l
+	LEFT JOIN institutions i ON i.id = l.institution_id`
+
+func scanLinkView(row pgx.Row) (LinkView, error) {
+	var v LinkView
+	err := row.Scan(
+		&v.ID, &v.UserID, &v.Provider, &v.ProviderLinkID, &v.InstitutionID, &v.Institution, &v.InstitutionName,
+		&v.AccessMode, &v.Status, &v.LastSyncAt, &v.LastSyncError, &v.CreatedAt, &v.UpdatedAt,
+		&v.InstitutionLogoURL, &v.InstitutionColor, &v.InstitutionIcon, &v.InstitutionType, &v.AccountCount,
+	)
+	if err != nil {
+		return LinkView{}, err
+	}
+	return v, nil
+}
+
+// ListLinks returns the user's bank connections.
+func (s *Store) ListLinks(ctx context.Context, userID uuid.UUID) ([]LinkView, error) {
+	rows, err := s.pool.Query(ctx, linkSelect+` WHERE l.user_id = $1 ORDER BY l.created_at`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list links: %w", err)
+	}
+	defer rows.Close()
+
+	links := make([]LinkView, 0)
+	for rows.Next() {
+		v, err := scanLinkView(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan link: %w", err)
+		}
+		links = append(links, v)
+	}
+	return links, rows.Err()
+}
+
+// GetLink returns one bank connection owned by the user.
+func (s *Store) GetLink(ctx context.Context, userID, linkID uuid.UUID) (LinkView, error) {
+	v, err := scanLinkView(s.pool.QueryRow(ctx, linkSelect+` WHERE l.user_id = $1 AND l.id = $2`, userID, linkID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return LinkView{}, ErrNotFound
+	}
+	if err != nil {
+		return LinkView{}, fmt.Errorf("get link: %w", err)
+	}
+	return v, nil
+}
+
+// LinkExists reports whether the user already has a connection to the institution.
+func (s *Store) LinkExists(ctx context.Context, userID, institutionID uuid.UUID) (bool, error) {
+	var exists bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM links WHERE user_id = $1 AND institution_id = $2)`,
+		userID, institutionID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check link: %w", err)
+	}
+	return exists, nil
+}
+
+// CreateLink connects the user to a visible institution.
+func (s *Store) CreateLink(ctx context.Context, p CreateLinkParams) (LinkView, error) {
+	const q = `
+		INSERT INTO links (user_id, provider, institution_id, institution, institution_name, access_mode, status)
+		SELECT $1, 'manual', i.id, i.slug, i.display_name, 'manual', 'healthy'
+		FROM institutions i
+		WHERE i.id = $2 AND i.is_active AND (i.user_id IS NULL OR i.user_id = $1)
+		RETURNING id`
+
+	var id uuid.UUID
+	err := s.pool.QueryRow(ctx, q, p.UserID, p.InstitutionID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return LinkView{}, ErrNotFound
+	}
+	if err != nil {
+		return LinkView{}, fmt.Errorf("insert link: %w", err)
+	}
+	return s.GetLink(ctx, p.UserID, id)
+}
+
+// DeleteLink removes a bank connection, detaching its accounts but keeping
+// their transactions.
+func (s *Store) DeleteLink(ctx context.Context, userID, linkID uuid.UUID) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin delete link: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx,
+		`UPDATE accounts SET link_id = NULL WHERE user_id = $1 AND link_id = $2`, userID, linkID); err != nil {
+		return fmt.Errorf("detach link accounts: %w", err)
+	}
+	tag, err := tx.Exec(ctx, `DELETE FROM links WHERE user_id = $1 AND id = $2`, userID, linkID)
+	if err != nil {
+		return fmt.Errorf("delete link: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return tx.Commit(ctx)
 }

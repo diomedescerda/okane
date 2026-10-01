@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { useAuth } from "./auth/AuthContext";
 import { AccountsPage } from "./pages/AccountsPage";
+import { BanksPage } from "./pages/BanksPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
 import { TransactionsPage } from "./pages/TransactionsPage";
@@ -43,6 +44,14 @@ export function App() {
         element={
           <Protected>
             <AccountsPage />
+          </Protected>
+        }
+      />
+      <Route
+        path="/banks"
+        element={
+          <Protected>
+            <BanksPage />
           </Protected>
         }
       />

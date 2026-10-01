@@ -61,7 +61,7 @@ func TestFinanceFlow(t *testing.T) {
 	account, err := svc.CreateAccount(ctx, userID, finance.NewAccount{
 		Name:           "Test checking",
 		Type:           "checking",
-		Currency:       "MXN",
+		Currency:       "COP",
 		OpeningBalance: money.New("100.00"),
 	})
 	if err != nil {
@@ -269,5 +269,224 @@ func assertAmount(t *testing.T, got money.Amount, want string) {
 	t.Helper()
 	if !got.Decimal.Equal(money.New(want).Decimal) {
 		t.Fatalf("amount = %s, want %s", got, want)
+	}
+}
+
+// TestInstitutionsAndLinks exercises Colombian institutions, custom
+// institutions and bank connections against a real database.
+func TestInstitutionsAndLinks(t *testing.T) {
+	dsn := os.Getenv("OKANE_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("OKANE_DATABASE_URL not set; skipping database integration test")
+	}
+
+	ctx := context.Background()
+	pool, err := db.Open(ctx, dsn)
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	defer pool.Close()
+
+	svc := finance.NewService(finance.NewStore(pool), time.UTC)
+
+	var userID uuid.UUID
+	email := fmt.Sprintf("finance-inst-%d@example.com", time.Now().UnixNano())
+	err = pool.QueryRow(ctx,
+		`INSERT INTO users (email, password_hash, name) VALUES ($1, 'x', 'Test') RETURNING id`, email,
+	).Scan(&userID)
+	if err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+	defer func() {
+		if _, err := pool.Exec(context.Background(), `DELETE FROM users WHERE id = $1`, userID); err != nil {
+			t.Errorf("cleanup user: %v", err)
+		}
+	}()
+
+	// --- Seeded institutions ---
+
+	all, err := svc.ListInstitutions(ctx, userID, finance.InstitutionFilter{})
+	if err != nil {
+		t.Fatalf("list institutions: %v", err)
+	}
+	if len(all) < 19 {
+		t.Fatalf("expected at least 19 seeded institutions, got %d", len(all))
+	}
+
+	var bancolombia, nequi *finance.InstitutionView
+	for i := range all {
+		switch all[i].Slug {
+		case "bancolombia":
+			bancolombia = &all[i]
+		case "nequi":
+			nequi = &all[i]
+		}
+	}
+	if bancolombia == nil || nequi == nil {
+		t.Fatal("expected seeded Bancolombia and Nequi institutions")
+	}
+	if bancolombia.LogoURL == "" || bancolombia.PrimaryColor == "" {
+		t.Fatalf("expected Bancolombia logo and color, got %+v", bancolombia)
+	}
+	if bancolombia.Type != domain.InstitutionBank || nequi.Type != domain.InstitutionWallet {
+		t.Fatalf("unexpected institution types: %q, %q", bancolombia.Type, nequi.Type)
+	}
+
+	walletType := domain.InstitutionWallet
+	wallets, err := svc.ListInstitutions(ctx, userID, finance.InstitutionFilter{Type: &walletType})
+	if err != nil {
+		t.Fatalf("list wallet institutions: %v", err)
+	}
+	if len(wallets) < 4 {
+		t.Fatalf("expected at least 4 wallets, got %d", len(wallets))
+	}
+
+	found, err := svc.ListInstitutions(ctx, userID, finance.InstitutionFilter{Search: "nequi"})
+	if err != nil {
+		t.Fatalf("search institutions: %v", err)
+	}
+	if len(found) != 1 || found[0].Slug != "nequi" {
+		t.Fatalf("expected the search to find only Nequi, got %d results", len(found))
+	}
+
+	// --- Custom institutions ---
+
+	if _, err := svc.CreateInstitution(ctx, userID, finance.NewInstitution{DisplayName: "  "}); err == nil {
+		t.Fatal("expected validation error for empty institution name")
+	}
+	if _, err := svc.CreateInstitution(ctx, userID, finance.NewInstitution{DisplayName: "My bank", Type: "crypto"}); err == nil {
+		t.Fatal("expected validation error for invalid institution type")
+	}
+	if _, err := svc.CreateInstitution(ctx, userID, finance.NewInstitution{DisplayName: "My bank", PrimaryColor: "red"}); err == nil {
+		t.Fatal("expected validation error for invalid color")
+	}
+
+	custom, err := svc.CreateInstitution(ctx, userID, finance.NewInstitution{
+		DisplayName:  "Cooperative Bank",
+		Type:         "bank",
+		Website:      "https://coop.example.com",
+		PrimaryColor: "#1A2B3C",
+		Icon:         "🏦",
+	})
+	if err != nil {
+		t.Fatalf("create institution: %v", err)
+	}
+	if custom.IsSystem || custom.UserID == nil || *custom.UserID != userID {
+		t.Fatalf("unexpected custom institution: %+v", custom)
+	}
+	if custom.LinkCount != 0 {
+		t.Fatalf("expected zero links, got %d", custom.LinkCount)
+	}
+
+	if err := svc.DeleteInstitution(ctx, userID, bancolombia.ID); err == nil {
+		t.Fatal("expected built-in institutions to be undeletable")
+	}
+
+	// --- Connections ---
+
+	link, err := svc.CreateLink(ctx, userID, bancolombia.ID)
+	if err != nil {
+		t.Fatalf("create link: %v", err)
+	}
+	if link.InstitutionName != "Bancolombia" || link.AccountCount != 0 {
+		t.Fatalf("unexpected link: %+v", link)
+	}
+	if _, err := svc.CreateLink(ctx, userID, bancolombia.ID); err == nil {
+		t.Fatal("expected duplicate connection to be rejected")
+	}
+	if _, err := svc.CreateLink(ctx, userID, uuid.New()); !errors.Is(err, finance.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound for unknown institution, got %v", err)
+	}
+
+	// An account attached to the connection inherits the bank branding.
+	account, err := svc.CreateAccount(ctx, userID, finance.NewAccount{
+		Name:           "Savings",
+		Type:           "savings",
+		OpeningBalance: money.New("100"),
+		LinkID:         &link.ID,
+	})
+	if err != nil {
+		t.Fatalf("create linked account: %v", err)
+	}
+	if account.LinkID == nil || *account.LinkID != link.ID {
+		t.Fatalf("expected account attached to %s, got %v", link.ID, account.LinkID)
+	}
+	if account.InstitutionName != "Bancolombia" {
+		t.Fatalf("expected institution name from the link, got %q", account.InstitutionName)
+	}
+	if account.InstitutionLogoURL == "" || account.InstitutionType != "bank" {
+		t.Fatalf("expected joined institution fields, got %+v", account)
+	}
+
+	// Detach and reattach through the patch semantics.
+	var detach *uuid.UUID
+	detached, err := svc.UpdateAccount(ctx, userID, account.ID, finance.AccountPatch{LinkID: &detach})
+	if err != nil {
+		t.Fatalf("detach account: %v", err)
+	}
+	if detached.LinkID != nil {
+		t.Fatalf("expected account detached, got link %v", detached.LinkID)
+	}
+	attach := link.ID
+	attachPtr := &attach
+	reattached, err := svc.UpdateAccount(ctx, userID, account.ID, finance.AccountPatch{LinkID: &attachPtr})
+	if err != nil {
+		t.Fatalf("reattach account: %v", err)
+	}
+	if reattached.LinkID == nil || *reattached.LinkID != link.ID {
+		t.Fatalf("expected account reattached to %s, got %v", link.ID, reattached.LinkID)
+	}
+
+	// Deleting a connection detaches its accounts without losing data.
+	if err := svc.DeleteLink(ctx, userID, link.ID); err != nil {
+		t.Fatalf("delete link: %v", err)
+	}
+	accounts, err := svc.ListAccounts(ctx, userID)
+	if err != nil {
+		t.Fatalf("list accounts: %v", err)
+	}
+	if len(accounts) != 1 {
+		t.Fatalf("expected 1 account after detach, got %d", len(accounts))
+	}
+	if accounts[0].LinkID != nil {
+		t.Fatalf("expected detached account, got link %v", accounts[0].LinkID)
+	}
+	if accounts[0].Provider != "manual" {
+		t.Fatalf("expected manual provider, got %q", accounts[0].Provider)
+	}
+	assertAmount(t, accounts[0].BalanceCurrent, "100")
+	if _, err := svc.GetLink(ctx, userID, link.ID); !errors.Is(err, finance.ErrNotFound) {
+		t.Fatalf("expected link to be deleted, got %v", err)
+	}
+
+	// Deleting a custom institution removes its connections and detaches accounts.
+	customLink, err := svc.CreateLink(ctx, userID, custom.ID)
+	if err != nil {
+		t.Fatalf("create custom link: %v", err)
+	}
+	customAttach := customLink.ID
+	customAttachPtr := &customAttach
+	if _, err := svc.UpdateAccount(ctx, userID, account.ID, finance.AccountPatch{LinkID: &customAttachPtr}); err != nil {
+		t.Fatalf("attach to custom institution: %v", err)
+	}
+	if err := svc.DeleteInstitution(ctx, userID, custom.ID); err != nil {
+		t.Fatalf("delete custom institution: %v", err)
+	}
+	if _, err := svc.GetLink(ctx, userID, customLink.ID); !errors.Is(err, finance.ErrNotFound) {
+		t.Fatalf("expected custom link deleted, got %v", err)
+	}
+	if _, err := svc.GetInstitution(ctx, userID, custom.ID); !errors.Is(err, finance.ErrNotFound) {
+		t.Fatalf("expected custom institution deleted, got %v", err)
+	}
+	accounts, err = svc.ListAccounts(ctx, userID)
+	if err != nil {
+		t.Fatalf("list accounts: %v", err)
+	}
+	if accounts[0].LinkID != nil {
+		t.Fatalf("expected detached account after institution delete, got link %v", accounts[0].LinkID)
+	}
+
+	if err := svc.DeleteAccount(ctx, userID, account.ID); err != nil {
+		t.Fatalf("delete account: %v", err)
 	}
 }

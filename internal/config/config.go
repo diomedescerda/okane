@@ -22,6 +22,9 @@ type Config struct {
 	SessionTTL          time.Duration
 	SessionCookieSecure bool
 
+	// Timezone groups reports and month boundaries for the user.
+	Timezone string
+
 	BelvoEnv      string
 	BelvoSecretID string
 	BelvoSecret   string
@@ -34,6 +37,15 @@ type Config struct {
 func (c *Config) IsDev() bool { return c.Env != "prod" }
 
 func (c *Config) SessionCookieName() string { return "okane_session" }
+
+// Location resolves the configured timezone.
+func (c *Config) Location() (*time.Location, error) {
+	loc, err := time.LoadLocation(c.Timezone)
+	if err != nil {
+		return nil, fmt.Errorf("OKANE_TIMEZONE %q is not a known IANA timezone: %w", c.Timezone, err)
+	}
+	return loc, nil
+}
 
 func Load() (*Config, error) {
 	_ = godotenv.Load(".env")
@@ -48,6 +60,8 @@ func Load() (*Config, error) {
 
 		SessionTTL:          envDuration("OKANE_SESSION_TTL", 30*24*time.Hour),
 		SessionCookieSecure: envBool("OKANE_SESSION_COOKIE_SECURE", false),
+
+		Timezone: env("OKANE_TIMEZONE", "America/Mexico_City"),
 
 		BelvoEnv:      env("OKANE_BELVO_ENV", "sandbox"),
 		BelvoSecretID: env("OKANE_BELVO_SECRET_ID", ""),

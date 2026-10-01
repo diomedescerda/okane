@@ -88,7 +88,7 @@ export function LoginPage() {
             </p>
           )}
 
-          <button className="btn-primary" disabled={busy} type="submit">
+          <button className="btn-primary w-full" disabled={busy} type="submit">
             {busy ? "…" : mode === "login" ? "Sign in" : "Create account"}
           </button>
 

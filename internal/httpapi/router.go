@@ -10,10 +10,11 @@ import (
 
 	"github.com/kenma/okane/internal/auth"
 	"github.com/kenma/okane/internal/config"
+	"github.com/kenma/okane/internal/finance"
 )
 
 // NewRouter builds the application HTTP handler.
-func NewRouter(cfg *config.Config, pool *pgxpool.Pool, authSvc *auth.Service, log *slog.Logger) http.Handler {
+func NewRouter(cfg *config.Config, pool *pgxpool.Pool, authSvc *auth.Service, financeSvc *finance.Service, log *slog.Logger) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(chimw.RequestID)
@@ -34,6 +35,7 @@ func NewRouter(cfg *config.Config, pool *pgxpool.Pool, authSvc *auth.Service, lo
 	})
 
 	ah := &authHandler{svc: authSvc, cfg: cfg}
+	fh := &financeHandler{svc: financeSvc, log: log}
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {
@@ -48,8 +50,31 @@ func NewRouter(cfg *config.Config, pool *pgxpool.Pool, authSvc *auth.Service, lo
 			})
 		})
 
-		// Authenticated application endpoints are mounted in later milestones
-		// (accounts, transactions, categories, budgets, AI reports).
+		r.Group(func(r chi.Router) {
+			r.Use(RequireAuth(authSvc, cfg))
+			r.Use(RequireSameOrigin(cfg))
+
+			r.Route("/accounts", func(r chi.Router) {
+				r.Get("/", fh.ListAccounts)
+				r.Post("/", fh.CreateAccount)
+				r.Get("/{accountID}", fh.GetAccount)
+				r.Patch("/{accountID}", fh.UpdateAccount)
+				r.Delete("/{accountID}", fh.DeleteAccount)
+			})
+
+			r.Get("/categories", fh.ListCategories)
+
+			r.Route("/transactions", func(r chi.Router) {
+				r.Get("/", fh.ListTransactions)
+				r.Post("/", fh.CreateTransaction)
+				r.Get("/{transactionID}", fh.GetTransaction)
+				r.Patch("/{transactionID}", fh.UpdateTransaction)
+				r.Delete("/{transactionID}", fh.DeleteTransaction)
+			})
+
+			r.Get("/summary", fh.Summary)
+			r.Get("/summary/months", fh.MonthlyTotals)
+		})
 	})
 
 	return r

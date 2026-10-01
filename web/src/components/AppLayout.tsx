@@ -5,8 +5,8 @@ import { useAuth } from "../auth/AuthContext";
 
 const NAV = [
   { to: "/", label: "Overview", enabled: true },
-  { to: "/transactions", label: "Transactions", enabled: false },
-  { to: "/accounts", label: "Accounts", enabled: false },
+  { to: "/transactions", label: "Transactions", enabled: true },
+  { to: "/accounts", label: "Accounts", enabled: true },
   { to: "/budgets", label: "Budgets", enabled: false },
   { to: "/insights", label: "Insights", enabled: false },
 ];

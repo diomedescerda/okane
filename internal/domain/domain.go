@@ -40,18 +40,18 @@ const (
 
 // Link represents a connection to a bank institution (via an aggregator).
 type Link struct {
-	ID                uuid.UUID  `json:"id"`
-	UserID            uuid.UUID  `json:"user_id"`
-	Provider          string     `json:"provider"`
-	ProviderLinkID    *string    `json:"provider_link_id,omitempty"`
-	Institution       string     `json:"institution"`
-	InstitutionName   string     `json:"institution_name"`
-	AccessMode        string     `json:"access_mode"`
-	Status            LinkStatus `json:"status"`
-	LastSyncAt        *time.Time `json:"last_sync_at,omitempty"`
-	LastSyncError     string     `json:"last_sync_error,omitempty"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
+	ID              uuid.UUID  `json:"id"`
+	UserID          uuid.UUID  `json:"user_id"`
+	Provider        string     `json:"provider"`
+	ProviderLinkID  *string    `json:"provider_link_id,omitempty"`
+	Institution     string     `json:"institution"`
+	InstitutionName string     `json:"institution_name"`
+	AccessMode      string     `json:"access_mode"`
+	Status          LinkStatus `json:"status"`
+	LastSyncAt      *time.Time `json:"last_sync_at,omitempty"`
+	LastSyncError   string     `json:"last_sync_error,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 type AccountType string
@@ -66,23 +66,23 @@ const (
 )
 
 type Account struct {
-	ID               uuid.UUID   `json:"id"`
-	UserID           uuid.UUID   `json:"user_id"`
-	LinkID           *uuid.UUID  `json:"link_id,omitempty"`
-	Provider         string      `json:"provider"`
-	ProviderAccount  *string     `json:"provider_account_id,omitempty"`
-	Name             string      `json:"name"`
-	Type             AccountType `json:"type"`
-	Subtype          string      `json:"subtype,omitempty"`
-	Currency         string      `json:"currency"`
-	BalanceCurrent   money.Amount `json:"balance_current"`
+	ID               uuid.UUID     `json:"id"`
+	UserID           uuid.UUID     `json:"user_id"`
+	LinkID           *uuid.UUID    `json:"link_id,omitempty"`
+	Provider         string        `json:"provider"`
+	ProviderAccount  *string       `json:"provider_account_id,omitempty"`
+	Name             string        `json:"name"`
+	Type             AccountType   `json:"type"`
+	Subtype          string        `json:"subtype,omitempty"`
+	Currency         string        `json:"currency"`
+	BalanceCurrent   money.Amount  `json:"balance_current"`
 	BalanceAvailable *money.Amount `json:"balance_available,omitempty"`
 	CreditLimit      *money.Amount `json:"credit_limit,omitempty"`
-	InstitutionName  string      `json:"institution_name"`
-	IsActive         bool        `json:"is_active"`
-	LastSyncedAt     *time.Time  `json:"last_synced_at,omitempty"`
-	CreatedAt        time.Time   `json:"created_at"`
-	UpdatedAt        time.Time   `json:"updated_at"`
+	InstitutionName  string        `json:"institution_name"`
+	IsActive         bool          `json:"is_active"`
+	LastSyncedAt     *time.Time    `json:"last_synced_at,omitempty"`
+	CreatedAt        time.Time     `json:"created_at"`
+	UpdatedAt        time.Time     `json:"updated_at"`
 }
 
 type CategoryKind string

@@ -72,12 +72,12 @@ func (a *Amount) Scan(src any) error {
 // Value implements driver.Valuer by delegating to decimal.Decimal.
 func (a Amount) Value() (any, error) { return a.Decimal.Value() }
 
-func (a Amount) Add(b Amount) Amount      { return Amount{a.Decimal.Add(b.Decimal)} }
-func (a Amount) Sub(b Amount) Amount      { return Amount{a.Decimal.Sub(b.Decimal)} }
-func (a Amount) Neg() Amount              { return Amount{a.Decimal.Neg()} }
-func (a Amount) Abs() Amount              { return Amount{a.Decimal.Abs()} }
-func (a Amount) IsZero() bool             { return a.Decimal.IsZero() }
-func (a Amount) IsNegative() bool         { return a.Decimal.IsNegative() }
-func (a Amount) LessThan(b Amount) bool   { return a.Decimal.LessThan(b.Decimal) }
-func (a Amount) Float64() float64         { f, _ := a.Decimal.Float64(); return f }
-func (a Amount) RoundCents() Amount       { return Amount{a.Decimal.Round(2)} }
+func (a Amount) Add(b Amount) Amount    { return Amount{a.Decimal.Add(b.Decimal)} }
+func (a Amount) Sub(b Amount) Amount    { return Amount{a.Decimal.Sub(b.Decimal)} }
+func (a Amount) Neg() Amount            { return Amount{a.Decimal.Neg()} }
+func (a Amount) Abs() Amount            { return Amount{a.Decimal.Abs()} }
+func (a Amount) IsZero() bool           { return a.Decimal.IsZero() }
+func (a Amount) IsNegative() bool       { return a.Decimal.IsNegative() }
+func (a Amount) LessThan(b Amount) bool { return a.Decimal.LessThan(b.Decimal) }
+func (a Amount) Float64() float64       { f, _ := a.Decimal.Float64(); return f }
+func (a Amount) RoundCents() Amount     { return Amount{a.Decimal.Round(2)} }

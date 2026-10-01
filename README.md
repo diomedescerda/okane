@@ -60,14 +60,25 @@ The API returns a session token (for the iOS app) and sets an HttpOnly cookie
 
 ## API
 
-| Method | Path                    | Description                          |
-| ------ | ----------------------- | ------------------------------------ |
-| GET    | `/healthz`              | Liveness                             |
-| GET    | `/readyz`               | Readiness (pings Postgres)           |
-| POST   | `/api/v1/auth/register` | Create account + session             |
-| POST   | `/api/v1/auth/login`    | Sign in                              |
-| POST   | `/api/v1/auth/logout`   | Revoke current session               |
-| GET    | `/api/v1/auth/me`       | Current user                         |
+| Method | Path                        | Description                          |
+| ------ | --------------------------- | ------------------------------------ |
+| GET    | `/healthz`                  | Liveness                             |
+| GET    | `/readyz`                   | Readiness (pings Postgres)           |
+| POST   | `/api/v1/auth/register`     | Create account + session             |
+| POST   | `/api/v1/auth/login`        | Sign in                              |
+| POST   | `/api/v1/auth/logout`       | Revoke current session               |
+| GET    | `/api/v1/auth/me`           | Current user                         |
+| GET    | `/api/v1/accounts`          | List accounts with live balances     |
+| POST   | `/api/v1/accounts`          | Create a manual account              |
+| PATCH  | `/api/v1/accounts/{id}`     | Update account                       |
+| DELETE | `/api/v1/accounts/{id}`     | Delete account (cascades its transactions) |
+| GET    | `/api/v1/categories`        | List system + user categories        |
+| GET    | `/api/v1/transactions`      | List/filter (`account_id`, `category_id`, `direction`, `search`, `from`, `to`, `limit`, `offset`) |
+| POST   | `/api/v1/transactions`      | Create transaction (amount is positive; direction sets sign) |
+| PATCH  | `/api/v1/transactions/{id}` | Update transaction (`null` clears category/merchant/notes) |
+| DELETE | `/api/v1/transactions/{id}` | Delete transaction                   |
+| GET    | `/api/v1/summary`           | Income/expenses/net/net worth + by category for a period |
+| GET    | `/api/v1/summary/months`    | Monthly totals (`?months=6`, 1–24)   |
 
 Authenticate with either `Authorization: Bearer <token>` (iOS) or the
 `okane_session` cookie (web). State-changing cookie requests are protected by
@@ -84,6 +95,7 @@ Highlights:
 | `OKANE_APP_URL`               | `http://localhost:5173`                             | Web origin (CORS + CSRF origin)    |
 | `OKANE_SESSION_TTL`           | `720h`                                              | Session lifetime                   |
 | `OKANE_SESSION_COOKIE_SECURE` | `false`                                             | Set `true` behind HTTPS            |
+| `OKANE_TIMEZONE`              | `America/Mexico_City`                               | IANA timezone for month boundaries |
 | `OKANE_BELVO_ENV`             | `sandbox`                                           | `sandbox` or `production`          |
 | `OKANE_AI_BASE_URL`           | `https://opencode.ai/inference/openai/v1`           | OpenAI-compatible endpoint         |
 | `OKANE_AI_API_KEY`            | —                                                   | OpenCode Console service key       |
@@ -118,7 +130,7 @@ advisory lock, so it is safe to restart or scale).
 ## Roadmap
 
 - [x] Foundation: repo, schema, migrations, config, auth, web shell, deploy
-- [ ] Accounts + transactions: CRUD, categories, rules, dashboard data
+- [x] Accounts + transactions: CRUD, categories, dashboard (rules TBD)
 - [ ] Belvo: link flow (sandbox `erebus` first), sync worker, webhooks, dedupe
 - [ ] CSV/OFX import so the app is useful without aggregation
 - [ ] AI: categorization fallback, monthly digest, anomalies, Q&A over your data

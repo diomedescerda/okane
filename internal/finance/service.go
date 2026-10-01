@@ -1,0 +1,514 @@
+package finance
+
+import (
+	"context"
+	"strings"
+	"time"
+	"unicode"
+	"unicode/utf8"
+
+	"github.com/google/uuid"
+
+	"github.com/kenma/okane/internal/domain"
+	"github.com/kenma/okane/internal/money"
+)
+
+// Service implements account, category, transaction and report operations with
+// validation on top of the store.
+type Service struct {
+	store *Store
+	loc   *time.Location
+}
+
+func NewService(store *Store, loc *time.Location) *Service {
+	if loc == nil {
+		loc = time.UTC
+	}
+	return &Service{store: store, loc: loc}
+}
+
+// NewAccount is the input for CreateAccount.
+type NewAccount struct {
+	Name            string
+	Type            string
+	Currency        string
+	OpeningBalance  money.Amount
+	InstitutionName string
+}
+
+// AccountPatch is a partial account update; nil fields are left unchanged.
+type AccountPatch struct {
+	Name            *string
+	Type            *string
+	Subtype         *string
+	Currency        *string
+	OpeningBalance  *money.Amount
+	InstitutionName *string
+	IsActive        *bool
+}
+
+// NewTransaction is the input for CreateTransaction. Amount is the positive
+// magnitude; Direction decides the sign.
+type NewTransaction struct {
+	AccountID   uuid.UUID
+	CategoryID  *uuid.UUID
+	Description string
+	Merchant    *string
+	Amount      money.Amount
+	Direction   domain.Direction
+	Currency    string
+	Status      domain.TransactionStatus
+	OccurredAt  *time.Time
+	Notes       *string
+}
+
+// TransactionPatch is a partial transaction update. CategoryID, Merchant and
+// Notes use pointer-to-pointer: nil means "leave unchanged", a pointer to nil
+// clears the value.
+type TransactionPatch struct {
+	AccountID   *uuid.UUID
+	CategoryID  **uuid.UUID
+	Description *string
+	Merchant    **string
+	Amount      *money.Amount
+	Direction   *domain.Direction
+	OccurredAt  *time.Time
+	Status      *domain.TransactionStatus
+	Notes       **string
+}
+
+func (s *Service) ListAccounts(ctx context.Context, userID uuid.UUID) ([]AccountView, error) {
+	return s.store.ListAccounts(ctx, userID)
+}
+
+func (s *Service) GetAccount(ctx context.Context, userID, accountID uuid.UUID) (AccountView, error) {
+	return s.store.GetAccount(ctx, userID, accountID)
+}
+
+func (s *Service) CreateAccount(ctx context.Context, userID uuid.UUID, in NewAccount) (AccountView, error) {
+	name := strings.TrimSpace(in.Name)
+	if name == "" {
+		return AccountView{}, Invalid("name is required")
+	}
+	if utf8.RuneCountInString(name) > 80 {
+		return AccountView{}, Invalid("name must be at most 80 characters")
+	}
+
+	accType := domain.AccountType(strings.TrimSpace(in.Type))
+	if accType == "" {
+		accType = domain.AccountChecking
+	}
+	if !validAccountType(accType) {
+		return AccountView{}, Invalid("invalid account type %q", in.Type)
+	}
+
+	currency, err := normalizeCurrency(in.Currency)
+	if err != nil {
+		return AccountView{}, err
+	}
+	if currency == "" {
+		currency = "MXN"
+	}
+
+	return s.store.CreateAccount(ctx, CreateAccountParams{
+		UserID:          userID,
+		Name:            name,
+		Type:            accType,
+		Currency:        currency,
+		OpeningBalance:  in.OpeningBalance,
+		InstitutionName: strings.TrimSpace(in.InstitutionName),
+	})
+}
+
+func (s *Service) UpdateAccount(ctx context.Context, userID, accountID uuid.UUID, in AccountPatch) (AccountView, error) {
+	current, err := s.store.GetAccount(ctx, userID, accountID)
+	if err != nil {
+		return AccountView{}, err
+	}
+	if current.LinkID != nil && (in.OpeningBalance != nil || in.Currency != nil) {
+		return AccountView{}, Invalid("balance and currency of a linked account are managed by the bank connection")
+	}
+
+	params := UpdateAccountParams{UserID: userID, AccountID: accountID}
+
+	if in.Name != nil {
+		name := strings.TrimSpace(*in.Name)
+		if name == "" {
+			return AccountView{}, Invalid("name cannot be empty")
+		}
+		if utf8.RuneCountInString(name) > 80 {
+			return AccountView{}, Invalid("name must be at most 80 characters")
+		}
+		params.Name = &name
+	}
+	if in.Type != nil {
+		t := domain.AccountType(strings.TrimSpace(*in.Type))
+		if !validAccountType(t) {
+			return AccountView{}, Invalid("invalid account type %q", *in.Type)
+		}
+		params.Type = &t
+	}
+	if in.Subtype != nil {
+		subtype := strings.TrimSpace(*in.Subtype)
+		params.Subtype = &subtype
+	}
+	if in.Currency != nil {
+		currency, err := normalizeCurrency(*in.Currency)
+		if err != nil {
+			return AccountView{}, err
+		}
+		if currency == "" {
+			return AccountView{}, Invalid("currency cannot be empty")
+		}
+		params.Currency = &currency
+	}
+	if in.OpeningBalance != nil {
+		if err := validateAmount(*in.OpeningBalance, false); err != nil {
+			return AccountView{}, err
+		}
+		params.OpeningBalance = in.OpeningBalance
+	}
+	if in.InstitutionName != nil {
+		institution := strings.TrimSpace(*in.InstitutionName)
+		params.InstitutionName = &institution
+	}
+	params.IsActive = in.IsActive
+
+	return s.store.UpdateAccount(ctx, params)
+}
+
+func (s *Service) DeleteAccount(ctx context.Context, userID, accountID uuid.UUID) error {
+	return s.store.DeleteAccount(ctx, userID, accountID)
+}
+
+func (s *Service) ListCategories(ctx context.Context, userID uuid.UUID) ([]domain.Category, error) {
+	return s.store.ListCategories(ctx, userID)
+}
+
+func (s *Service) ListTransactions(ctx context.Context, f TransactionFilter) ([]TransactionView, int64, error) {
+	return s.store.ListTransactions(ctx, f)
+}
+
+func (s *Service) GetTransaction(ctx context.Context, userID, transactionID uuid.UUID) (TransactionView, error) {
+	return s.store.GetTransaction(ctx, userID, transactionID)
+}
+
+func (s *Service) CreateTransaction(ctx context.Context, userID uuid.UUID, in NewTransaction) (TransactionView, error) {
+	account, err := s.store.GetAccount(ctx, userID, in.AccountID)
+	if err != nil {
+		return TransactionView{}, err
+	}
+
+	description := strings.TrimSpace(in.Description)
+	if description == "" {
+		return TransactionView{}, Invalid("description is required")
+	}
+	if utf8.RuneCountInString(description) > 200 {
+		return TransactionView{}, Invalid("description must be at most 200 characters")
+	}
+	if err := validateAmount(in.Amount, true); err != nil {
+		return TransactionView{}, err
+	}
+	if !validDirection(in.Direction) {
+		return TransactionView{}, Invalid(`direction must be "in" or "out"`)
+	}
+	if in.CategoryID != nil {
+		if err := s.requireCategory(ctx, userID, *in.CategoryID); err != nil {
+			return TransactionView{}, err
+		}
+	}
+	status := in.Status
+	if status == "" {
+		status = domain.StatusPosted
+	}
+	if !validStatus(status) {
+		return TransactionView{}, Invalid("invalid status %q", in.Status)
+	}
+	currency, err := normalizeCurrency(in.Currency)
+	if err != nil {
+		return TransactionView{}, err
+	}
+	if currency == "" {
+		currency = account.Currency
+	}
+	occurredAt := time.Now()
+	if in.OccurredAt != nil {
+		occurredAt = *in.OccurredAt
+	}
+
+	amount := in.Amount
+	if in.Direction == domain.DirectionOut {
+		amount = amount.Neg()
+	}
+	source := domain.CategorySourceNone
+	if in.CategoryID != nil {
+		source = domain.CategorySourceManual
+	}
+
+	return s.store.CreateTransaction(ctx, CreateTransactionParams{
+		UserID:         userID,
+		AccountID:      in.AccountID,
+		CategoryID:     in.CategoryID,
+		Description:    description,
+		Merchant:       cleanOptional(in.Merchant),
+		Amount:         amount,
+		Direction:      in.Direction,
+		Currency:       currency,
+		Status:         status,
+		CategorySource: source,
+		OccurredAt:     occurredAt,
+		Notes:          cleanOptional(in.Notes),
+	})
+}
+
+func (s *Service) UpdateTransaction(ctx context.Context, userID, transactionID uuid.UUID, in TransactionPatch) (TransactionView, error) {
+	existing, err := s.store.GetTransaction(ctx, userID, transactionID)
+	if err != nil {
+		return TransactionView{}, err
+	}
+
+	params := UpdateTransactionParams{UserID: userID, TransactionID: transactionID}
+
+	if in.AccountID != nil {
+		if _, err := s.store.GetAccount(ctx, userID, *in.AccountID); err != nil {
+			return TransactionView{}, err
+		}
+		params.AccountID = in.AccountID
+	}
+
+	// Keep amount and direction consistent: recompute the signed amount when
+	// either side changes.
+	magnitude := existing.Amount.Abs()
+	direction := existing.Direction
+	signedChanged := false
+	if in.Amount != nil {
+		if err := validateAmount(*in.Amount, true); err != nil {
+			return TransactionView{}, err
+		}
+		magnitude = *in.Amount
+		signedChanged = true
+	}
+	if in.Direction != nil {
+		if !validDirection(*in.Direction) {
+			return TransactionView{}, Invalid(`direction must be "in" or "out"`)
+		}
+		direction = *in.Direction
+		signedChanged = true
+	}
+	if signedChanged {
+		signed := magnitude
+		if direction == domain.DirectionOut {
+			signed = signed.Neg()
+		}
+		params.Amount = &signed
+		params.Direction = &direction
+	}
+
+	if in.CategoryID != nil {
+		categoryID := *in.CategoryID
+		if categoryID != nil {
+			if err := s.requireCategory(ctx, userID, *categoryID); err != nil {
+				return TransactionView{}, err
+			}
+		}
+		source := domain.CategorySourceManual
+		if categoryID == nil {
+			source = domain.CategorySourceNone
+		}
+		params.SetCategory = true
+		params.CategoryID = categoryID
+		params.CategorySource = &source
+	}
+
+	if in.Description != nil {
+		description := strings.TrimSpace(*in.Description)
+		if description == "" {
+			return TransactionView{}, Invalid("description cannot be empty")
+		}
+		if utf8.RuneCountInString(description) > 200 {
+			return TransactionView{}, Invalid("description must be at most 200 characters")
+		}
+		params.Description = &description
+	}
+
+	if merchant, set := cleanOptionalPresent(in.Merchant); set {
+		params.SetMerchant = true
+		params.Merchant = merchant
+	}
+	if notes, set := cleanOptionalPresent(in.Notes); set {
+		params.SetNotes = true
+		params.Notes = notes
+	}
+
+	if in.OccurredAt != nil {
+		params.OccurredAt = in.OccurredAt
+	}
+	if in.Status != nil {
+		if !validStatus(*in.Status) {
+			return TransactionView{}, Invalid("invalid status %q", *in.Status)
+		}
+		params.Status = in.Status
+	}
+
+	return s.store.UpdateTransaction(ctx, params)
+}
+
+func (s *Service) DeleteTransaction(ctx context.Context, userID, transactionID uuid.UUID) error {
+	return s.store.DeleteTransaction(ctx, userID, transactionID)
+}
+
+// Summary returns period totals, category breakdown and net worth. from/to
+// default to the current month (in the configured timezone) up to now.
+func (s *Service) Summary(ctx context.Context, userID uuid.UUID, from, to *time.Time) (Summary, error) {
+	now := time.Now().In(s.loc)
+	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, s.loc)
+	end := start.AddDate(0, 1, 0)
+	f, t := start, end
+	if from != nil {
+		f = from.In(s.loc)
+	}
+	if to != nil {
+		t = to.In(s.loc)
+	}
+	if !f.Before(t) {
+		return Summary{}, Invalid("from must be before to")
+	}
+
+	income, expenses, netWorth, err := s.store.SummaryTotals(ctx, userID, f, t)
+	if err != nil {
+		return Summary{}, err
+	}
+	byCategory, err := s.store.CategoryTotals(ctx, userID, f, t)
+	if err != nil {
+		return Summary{}, err
+	}
+
+	return Summary{
+		From:       f,
+		To:         t,
+		Income:     income,
+		Expenses:   expenses,
+		Net:        income.Sub(expenses),
+		NetWorth:   netWorth,
+		ByCategory: byCategory,
+	}, nil
+}
+
+// MonthlyTotals returns the last n months of income/expenses, oldest first,
+// including months without transactions.
+func (s *Service) MonthlyTotals(ctx context.Context, userID uuid.UUID, months int) ([]MonthTotal, error) {
+	if months <= 0 {
+		months = 6
+	}
+	if months > 24 {
+		months = 24
+	}
+
+	now := time.Now().In(s.loc)
+	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, s.loc).AddDate(0, -(months - 1), 0)
+
+	rows, err := s.store.MonthlyTotals(ctx, userID, start, s.loc.String())
+	if err != nil {
+		return nil, err
+	}
+	byMonth := make(map[string]MonthTotal, len(rows))
+	for _, r := range rows {
+		byMonth[r.Month] = r
+	}
+
+	out := make([]MonthTotal, 0, months)
+	for i := 0; i < months; i++ {
+		month := start.AddDate(0, i, 0).Format("2006-01")
+		if r, ok := byMonth[month]; ok {
+			out = append(out, r)
+			continue
+		}
+		out = append(out, MonthTotal{
+			Month:    month,
+			Income:   money.Zero(),
+			Expenses: money.Zero(),
+			Net:      money.Zero(),
+		})
+	}
+	return out, nil
+}
+
+func (s *Service) requireCategory(ctx context.Context, userID, categoryID uuid.UUID) error {
+	ok, err := s.store.CategoryValid(ctx, userID, categoryID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func validAccountType(t domain.AccountType) bool {
+	switch t {
+	case domain.AccountChecking, domain.AccountSavings, domain.AccountCreditCard,
+		domain.AccountLoan, domain.AccountInvestment, domain.AccountOther:
+		return true
+	}
+	return false
+}
+
+func validDirection(d domain.Direction) bool {
+	return d == domain.DirectionIn || d == domain.DirectionOut
+}
+
+func validStatus(s domain.TransactionStatus) bool {
+	return s == domain.StatusPosted || s == domain.StatusPending
+}
+
+// validateAmount requires a positive magnitude and at most 4 decimal places
+// (the storage precision). allowNegative is used for opening balances.
+func validateAmount(a money.Amount, requirePositive bool) error {
+	if requirePositive && !a.Decimal.IsPositive() {
+		return Invalid("amount must be greater than zero")
+	}
+	if a.Decimal.Exponent() < -4 {
+		return Invalid("amount supports at most 4 decimal places")
+	}
+	return nil
+}
+
+func normalizeCurrency(c string) (string, error) {
+	c = strings.ToUpper(strings.TrimSpace(c))
+	if c == "" {
+		return "", nil
+	}
+	if len(c) != 3 {
+		return "", Invalid("currency must be a 3-letter code")
+	}
+	for _, r := range c {
+		if !unicode.IsLetter(r) || r > unicode.MaxASCII {
+			return "", Invalid("currency must be a 3-letter code")
+		}
+	}
+	return c, nil
+}
+
+// cleanOptional trims a string pointer, turning empty strings into nil.
+func cleanOptional(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*s)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+// cleanOptionalPresent handles pointer-to-pointer patch fields. set reports
+// whether the field was present in the request; value is nil to clear.
+func cleanOptionalPresent(s **string) (value *string, set bool) {
+	if s == nil {
+		return nil, false
+	}
+	if *s == nil {
+		return nil, true
+	}
+	return cleanOptional(*s), true
+}

@@ -106,8 +106,11 @@ OKANE_DATABASE_URL="postgres://okane:okane@localhost:5432/okane?sslmode=disable"
 docker compose -f deploy/compose.yaml --env-file deploy/.env up -d --build
 ```
 
-Caddy provisions TLS automatically. A `backup` service writes a gzipped
-`pg_dump` to `deploy/backups/` every 24 hours and keeps 14 days.
+Caddy provisions TLS automatically. For a local rehearsal, `OKANE_DOMAIN=localhost`
+serves `https://localhost` with a self-signed certificate (curl needs `-k`).
+
+A `backup` service writes a gzipped `pg_dump` to `deploy/backups/` every 24
+hours and keeps 14 days.
 
 Migrations run automatically when the API starts (protected by a Postgres
 advisory lock, so it is safe to restart or scale).

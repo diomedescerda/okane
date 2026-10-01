@@ -3,7 +3,7 @@
 #
 # Copy deploy/.env.example to deploy/.env and fill it in first.
 
-name: okane
+name: okane-prod
 
 services:
   postgres:

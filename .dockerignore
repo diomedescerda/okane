@@ -1,0 +1,18 @@
+.git
+.gitignore
+.env
+.env.*
+*.local
+*.md
+
+# Go build output
+bin/
+
+# Web
+web/node_modules/
+web/dist/
+
+# Runtime data
+data/
+deploy/backups/
+deploy/.env

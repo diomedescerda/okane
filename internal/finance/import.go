@@ -47,8 +47,12 @@ type ImportRowView struct {
 	ExternalID  string `json:"external_id,omitempty"`
 	Amount      string `json:"amount"`
 	Direction   string `json:"direction"`
-	Duplicate   bool   `json:"duplicate"`
-	Repeated    bool   `json:"repeated"`
+	// Suggested category from the user's rules, shown in preview.
+	CategoryID     *string `json:"category_id,omitempty"`
+	CategoryName   *string `json:"category_name,omitempty"`
+	CategorySource string  `json:"category_source,omitempty"`
+	Duplicate      bool    `json:"duplicate"`
+	Repeated       bool    `json:"repeated"`
 }
 
 // ImportPreview describes a parsed statement before it is stored.

@@ -162,6 +162,7 @@ export interface TransactionQuery {
   search?: string;
   from?: string;
   to?: string;
+  uncategorized?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -196,6 +197,40 @@ export interface NewTransaction {
   status?: string;
 }
 
+export type MatchField = "description" | "merchant" | "amount" | "reference";
+export type MatchType = "contains" | "equals" | "regex" | "gt" | "lt";
+
+export interface Rule {
+  id: string;
+  user_id: string;
+  priority: number;
+  category_id: string;
+  field: MatchField;
+  match_type: MatchType;
+  pattern: string;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NewRule {
+  category_id: string;
+  priority?: number;
+  field: MatchField;
+  match_type: MatchType;
+  pattern: string;
+  enabled?: boolean;
+}
+
+export interface RulePatch {
+  category_id?: string;
+  priority?: number;
+  field?: MatchField;
+  match_type?: MatchType;
+  pattern?: string;
+  enabled?: boolean;
+}
+
 export interface TransactionPatch {
   description?: string;
   amount?: string;
@@ -213,6 +248,7 @@ function queryString(query: TransactionQuery): string {
   if (query.search) params.set("search", query.search);
   if (query.from) params.set("from", query.from);
   if (query.to) params.set("to", query.to);
+  if (query.uncategorized) params.set("uncategorized", "true");
   if (query.limit) params.set("limit", String(query.limit));
   if (query.offset) params.set("offset", String(query.offset));
   const qs = params.toString();
@@ -234,6 +270,9 @@ export interface ImportRowView {
   external_id?: string;
   amount: string;
   direction: Direction;
+  category_id?: string;
+  category_name?: string;
+  category_source?: string;
   duplicate: boolean;
   repeated: boolean;
 }
@@ -289,6 +328,14 @@ export const financeApi = {
     api.patch<Transaction>(`/api/v1/transactions/${id}`, body),
   deleteTransaction: (id: string) => api.delete<void>(`/api/v1/transactions/${id}`),
 
+  rules: () => api.get<{ rules: Rule[] }>("/api/v1/rules"),
+  createRule: (body: NewRule) => api.post<Rule>("/api/v1/rules", body),
+  updateRule: (id: string, body: RulePatch) => api.patch<Rule>(`/api/v1/rules/${id}`, body),
+  deleteRule: (id: string) => api.delete<void>(`/api/v1/rules/${id}`),
+
+  reclassify: (accountId: string) =>
+    api.post<{ job_id: string }>(`/api/v1/accounts/${accountId}/reclassify`),
+
   summary: (from?: string, to?: string) => {
     const params = new URLSearchParams();
     if (from) params.set("from", from);
@@ -330,6 +377,22 @@ export const INSTITUTION_TYPE_LABELS: Record<InstitutionType, string> = {
   bank: "Bank",
   wallet: "Wallet",
   other: "Other",
+};
+
+export const MATCH_TYPE_LABELS: Record<MatchType, string> = {
+  contains: "contains",
+  equals: "equals",
+  regex: "matches regex",
+  gt: "greater than",
+  lt: "less than",
+};
+
+/** Match types allowed per rule field: amount uses comparisons, others text matching. */
+export const RULE_MATCH_TYPES: Record<MatchField, MatchType[]> = {
+  description: ["contains", "equals", "regex"],
+  merchant: ["contains", "equals", "regex"],
+  reference: ["contains", "equals", "regex"],
+  amount: ["equals", "gt", "lt"],
 };
 
 export interface CategoryGroup {

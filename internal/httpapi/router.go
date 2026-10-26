@@ -61,9 +61,17 @@ func NewRouter(cfg *config.Config, pool *pgxpool.Pool, authSvc *auth.Service, fi
 				r.Patch("/{accountID}", fh.UpdateAccount)
 				r.Delete("/{accountID}", fh.DeleteAccount)
 				r.Post("/{accountID}/imports", fh.ImportStatement)
+				r.Post("/{accountID}/reclassify", fh.Reclassify)
 			})
 
 			r.Get("/categories", fh.ListCategories)
+
+			r.Route("/rules", func(r chi.Router) {
+				r.Get("/", fh.ListRules)
+				r.Post("/", fh.CreateRule)
+				r.Patch("/{ruleID}", fh.UpdateRule)
+				r.Delete("/{ruleID}", fh.DeleteRule)
+			})
 
 			r.Route("/transactions", func(r chi.Router) {
 				r.Get("/", fh.ListTransactions)

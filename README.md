@@ -3,9 +3,11 @@
 Personal finance tracker: expenses and income from your bank accounts, spending
 by category, and AI insights — on the web and on iPhone.
 
-> Status: **accounting core**. Auth, accounts, transactions, categories,
-> Colombian banks and CSV/OFX statement import are in place; AI insights and
-> the iOS app are next (see the roadmap below).
+> Status: **accounting core + classification**. Auth, accounts, transactions,
+> categories, Colombian banks, CSV/OFX statement import, a rules engine and
+> rule/AI auto-categorization (background jobs worker + OpenAI-compatible AI
+> client) are in place; AI insights and the iOS app are next (see the roadmap
+> below).
 
 ## Stack
 
@@ -24,13 +26,17 @@ floats. Amounts are in Colombian pesos (COP) by default.
 ## Layout
 
 ```
-cmd/okane/                CLI entrypoint: serve, migrate, version
+cmd/okane/                CLI entrypoint: serve, migrate, seed, version
 internal/config/          Environment configuration
 internal/db/              Pool, migrations (embedded SQL), integration test
 internal/domain/          Core data model
 internal/money/           Decimal money type (safe arithmetic + JSON)
 internal/auth/            Passwords (argon2id), sessions, service, store
+internal/finance/         Accounting service: accounts, transactions, import,
+                          classification rules, AI reclassification
 internal/httpapi/         Router, middleware, handlers
+internal/ai/              OpenAI-compatible chat/client for categorization
+internal/jobs/            Postgres-backed background queue (worker manager)
 web/                      React SPA
 deploy/                   Production compose, Dockerfiles, Caddyfile
 ```
@@ -55,6 +61,12 @@ curl -X POST localhost:8080/api/v1/auth/register \
   -d '{"email":"me@example.com","password":"password123","name":"Me"}'
 ```
 
+Or fill the app with a deterministic demo dataset:
+
+```sh
+make seed             # demo@okane.dev / demo1234, 2 accounts, ~6 months of COP transactions
+```
+
 The API returns a session token (for the iOS app) and sets an HttpOnly cookie
 (for the web app).
 
@@ -73,6 +85,7 @@ The API returns a session token (for the iOS app) and sets an HttpOnly cookie
 | PATCH  | `/api/v1/accounts/{id}`     | Update account (`link_id: null` detaches it) |
 | DELETE | `/api/v1/accounts/{id}`     | Delete account (cascades its transactions) |
 | POST   | `/api/v1/accounts/{id}/imports` | Preview or commit a CSV/OFX statement (multipart `file`; add `commit=true` to import) |
+| POST   | `/api/v1/accounts/{id}/reclassify` | Queue a background job that categorizes uncategorized transactions with AI (202 `{job_id}`; 503 when AI is not configured) |
 | GET    | `/api/v1/categories`        | List system + user categories        |
 | GET    | `/api/v1/institutions`      | List banks/wallets (`type`, `search`, `country`) |
 | POST   | `/api/v1/institutions`      | Add a custom institution (name, color, emoji icon) |
@@ -80,10 +93,14 @@ The API returns a session token (for the iOS app) and sets an HttpOnly cookie
 | GET    | `/api/v1/links`             | List bank connections                |
 | POST   | `/api/v1/links`             | Connect to an institution (`institution_id`) |
 | DELETE | `/api/v1/links/{id}`        | Remove a connection; its accounts are kept and detached |
-| GET    | `/api/v1/transactions`      | List/filter (`account_id`, `category_id`, `direction`, `search`, `from`, `to`, `limit`, `offset`) |
+| GET    | `/api/v1/transactions`      | List/filter (`account_id`, `category_id`, `direction`, `search`, `from`, `to`, `uncategorized`, `limit`, `offset`) |
 | POST   | `/api/v1/transactions`      | Create transaction (amount is positive; direction sets sign) |
 | PATCH  | `/api/v1/transactions/{id}` | Update transaction (`null` clears category/merchant/notes) |
 | DELETE | `/api/v1/transactions/{id}` | Delete transaction                   |
+| GET    | `/api/v1/rules`             | List classification rules (ordered by priority) |
+| POST   | `/api/v1/rules`             | Create rule (`field` + `match_type` + `pattern` → `category_id`) |
+| PATCH  | `/api/v1/rules/{id}`        | Update rule (toggle `enabled` or change priority) |
+| DELETE | `/api/v1/rules/{id}`        | Delete rule                   |
 | GET    | `/api/v1/summary`           | Income/expenses/net/net worth + by category for a period |
 | GET    | `/api/v1/summary/months`    | Monthly totals (`?months=6`, 1–24)   |
 
@@ -106,6 +123,13 @@ Highlights:
 | `OKANE_BELVO_ENV`             | `sandbox`                                           | `sandbox` or `production`          |
 | `OKANE_AI_BASE_URL`           | `https://opencode.ai/inference/openai/v1`           | OpenAI-compatible endpoint         |
 | `OKANE_AI_API_KEY`            | —                                                   | OpenCode Console service key       |
+| `OKANE_AI_MODEL`              | `glm-5.1`                                           | Model used for categorization      |
+
+Set `OKANE_AI_API_KEY` to enable AI reclassification: commits of statement
+imports enqueue a background job (Postgres-backed queue, `internal/jobs`) that
+batches uncategorized transactions and asks the model to assign categories.
+Rules run first at import time; AI fills only what rules missed. Without the
+key the app stays rules-only.
 
 ## Testing
 
@@ -142,9 +166,12 @@ advisory lock, so it is safe to restart or scale).
   (adding an account to a bank, detaching accounts without losing data)
 - [x] CSV/OFX import: parse bank statements, preview duplicates, commit into
   an account (works with manual accounts and bank connections)
+- [x] Classification: rules engine (first match wins) + AI categorization
+  fallback via a background jobs worker; user picks are never overwritten
 - [ ] Belvo aggregation (production access is paid): link flow, sync worker,
   webhooks, dedupe
-- [ ] AI: categorization fallback, monthly digest, anomalies, Q&A over your data
+- [ ] AI: monthly digest, anomalies, Q&A over your data
+  (categorization fallback is done)
 - [ ] iOS: SwiftUI app (login, dashboard, transactions, bank linking)
 - [ ] Budgets and recurring-charge detection
 - [ ] Push notifications / weekly email digest

@@ -101,15 +101,16 @@ type TransactionView struct {
 
 // TransactionFilter selects and paginates a transaction list.
 type TransactionFilter struct {
-	UserID     uuid.UUID
-	AccountID  *uuid.UUID
-	CategoryID *uuid.UUID
-	Direction  *domain.Direction
-	Search     string
-	From       *time.Time
-	To         *time.Time
-	Limit      int
-	Offset     int
+	UserID        uuid.UUID
+	AccountID     *uuid.UUID
+	CategoryID    *uuid.UUID
+	Uncategorized bool // category_id IS NULL
+	Direction     *domain.Direction
+	Search        string
+	From          *time.Time
+	To            *time.Time
+	Limit         int
+	Offset        int
 }
 
 // CategoryTotal aggregates one category (or uncategorized spending) over a
@@ -212,15 +213,19 @@ type UpdateTransactionParams struct {
 }
 
 // ImportedTransaction is a parsed statement row ready to be stored. Amount is
-// signed, negative for outflows.
+// signed, negative for outflows. A category assigned by the rules engine
+// travels with the row; CategorySource records where it came from (rule or
+// empty when uncategorized).
 type ImportedTransaction struct {
-	Description string
-	Merchant    *string
-	Reference   *string
-	Amount      money.Amount
-	Direction   domain.Direction
-	OccurredAt  time.Time
-	DedupeHash  string
+	Description    string
+	Merchant       *string
+	Reference      *string
+	Amount         money.Amount
+	Direction      domain.Direction
+	OccurredAt     time.Time
+	DedupeHash     string
+	CategoryID     *uuid.UUID
+	CategorySource domain.CategorySource
 }
 
 // ImportInsertParams inserts a batch of imported transactions for one account.

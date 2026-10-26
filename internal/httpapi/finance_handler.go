@@ -84,6 +84,22 @@ func queryInt(r *http.Request, key string, def int) (int, error) {
 	return n, nil
 }
 
+// queryBool parses an optional boolean query parameter, treating blank as false.
+func queryBool(r *http.Request, key string) (bool, error) {
+	raw := strings.TrimSpace(r.URL.Query().Get(key))
+	if raw == "" {
+		return false, nil
+	}
+	switch raw {
+	case "1", "true", "yes", "on":
+		return true, nil
+	case "0", "false", "off":
+		return false, nil
+	default:
+		return false, finance.Invalid("%s must be a boolean", key)
+	}
+}
+
 // --- Accounts ---
 
 // nullableString distinguishes a missing JSON key from an explicit null value.
@@ -307,6 +323,12 @@ func (h *financeHandler) ListTransactions(w http.ResponseWriter, r *http.Request
 	if filter.CategoryID, err = queryUUID(r, "category_id"); err != nil {
 		h.fail(w, r, err)
 		return
+	}
+	if v, err := queryBool(r, "uncategorized"); err != nil {
+		h.fail(w, r, err)
+		return
+	} else if v {
+		filter.Uncategorized = true
 	}
 	if filter.From, err = queryTime(r, "from"); err != nil {
 		h.fail(w, r, err)
@@ -648,6 +670,145 @@ func (h *financeHandler) DeleteLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// --- Rules ---
+
+type ruleRequest struct {
+	CategoryID string `json:"category_id"`
+	Priority   *int   `json:"priority"`
+	Field      string `json:"field"`
+	MatchType  string `json:"match_type"`
+	Pattern    string `json:"pattern"`
+	Enabled    *bool  `json:"enabled"`
+}
+
+type rulePatchRequest struct {
+	CategoryID *string `json:"category_id"`
+	Priority   *int    `json:"priority"`
+	Field      *string `json:"field"`
+	MatchType  *string `json:"match_type"`
+	Pattern    *string `json:"pattern"`
+	Enabled    *bool   `json:"enabled"`
+}
+
+func (h *financeHandler) ListRules(w http.ResponseWriter, r *http.Request) {
+	user, _ := UserFromContext(r.Context())
+	rules, err := h.svc.ListRules(r.Context(), user.ID)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"rules": rules})
+}
+
+func (h *financeHandler) CreateRule(w http.ResponseWriter, r *http.Request) {
+	user, _ := UserFromContext(r.Context())
+
+	var req ruleRequest
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	categoryID, err := uuid.Parse(strings.TrimSpace(req.CategoryID))
+	if err != nil {
+		h.fail(w, r, finance.Invalid("category_id must be a valid UUID"))
+		return
+	}
+
+	rule, err := h.svc.CreateRule(r.Context(), user.ID, finance.NewRule{
+		CategoryID: categoryID,
+		Priority:   derefInt(req.Priority),
+		Field:      req.Field,
+		MatchType:  req.MatchType,
+		Pattern:    req.Pattern,
+		Enabled:    req.Enabled,
+	})
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, rule)
+}
+
+func (h *financeHandler) UpdateRule(w http.ResponseWriter, r *http.Request) {
+	user, _ := UserFromContext(r.Context())
+	ruleID, err := urlUUID(r, "ruleID")
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+
+	var req rulePatchRequest
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+
+	patch := finance.RulePatch{
+		Priority: req.Priority,
+		Enabled:  req.Enabled,
+	}
+	if req.CategoryID != nil {
+		categoryID, err := uuid.Parse(strings.TrimSpace(*req.CategoryID))
+		if err != nil {
+			h.fail(w, r, finance.Invalid("category_id must be a valid UUID"))
+			return
+		}
+		patch.CategoryID = &categoryID
+	}
+	patch.Field = req.Field
+	patch.MatchType = req.MatchType
+	patch.Pattern = req.Pattern
+
+	rule, err := h.svc.UpdateRule(r.Context(), user.ID, ruleID, patch)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, rule)
+}
+
+func (h *financeHandler) DeleteRule(w http.ResponseWriter, r *http.Request) {
+	user, _ := UserFromContext(r.Context())
+	ruleID, err := urlUUID(r, "ruleID")
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	if err := h.svc.DeleteRule(r.Context(), user.ID, ruleID); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func derefInt(p *int) int {
+	if p == nil {
+		return 0
+	}
+	return *p
+}
+
+// Reclassify queues a background job that asks the AI model to categorize the
+// account's uncategorized transactions. Fails with 503 when AI is not wired.
+func (h *financeHandler) Reclassify(w http.ResponseWriter, r *http.Request) {
+	user, _ := UserFromContext(r.Context())
+	accountID, err := urlUUID(r, "accountID")
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	jobID, err := h.svc.EnqueueReclassification(r.Context(), user.ID, accountID)
+	if err != nil {
+		if errors.Is(err, finance.ErrAINotConfigured) {
+			writeError(w, http.StatusServiceUnavailable, "ai_disabled", "AI categorization is not configured")
+			return
+		}
+		h.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"job_id": jobID})
 }
 
 // ImportStatement previews or commits a CSV/OFX bank statement for an account.

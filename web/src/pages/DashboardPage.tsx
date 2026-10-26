@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import { financeApi } from "../api/finance";
 import { AppLayout } from "../components/AppLayout";
+import { EmptyState, Loading } from "../components/State";
 import { formatDate, formatMoney, formatMonth, formatSigned } from "../lib/format";
 
 function thisMonthLabel(): string {
@@ -31,7 +32,7 @@ export function DashboardPage() {
   if (accountsQuery.isLoading) {
     return (
       <AppLayout>
-        <p className="text-sm text-slate-500">Loading…</p>
+        <Loading />
       </AppLayout>
     );
   }
@@ -41,16 +42,15 @@ export function DashboardPage() {
       <AppLayout>
         <div className="mx-auto max-w-5xl space-y-6">
           <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
-          <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 p-10 text-center">
-            <div className="text-3xl">🏦</div>
-            <h2 className="mt-3 text-lg font-medium">No accounts yet</h2>
-            <p className="mx-auto mt-1 max-w-md text-sm text-slate-400">
-              Add an account and record your first transactions. Bank sync arrives in the next milestone.
-            </p>
-            <Link to="/accounts" className="btn-primary mt-4">
+          <EmptyState
+            icon="🏦"
+            title="No accounts yet"
+            description="Add an account and record your first transactions. Bank sync arrives in the next milestone."
+          >
+            <Link to="/accounts" className="btn-primary">
               Add an account
             </Link>
-          </div>
+          </EmptyState>
         </div>
       </AppLayout>
     );

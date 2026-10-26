@@ -18,6 +18,11 @@ import (
 type Service struct {
 	store *Store
 	loc   *time.Location
+
+	// categorizer and importHook are optional seams wired by the command
+	// layer (see ai.go).
+	categorizer Categorizer
+	importHook  ReclassifyHook
 }
 
 func NewService(store *Store, loc *time.Location) *Service {
@@ -275,17 +280,29 @@ func (s *Service) CreateTransaction(ctx context.Context, userID uuid.UUID, in Ne
 	if in.Direction == domain.DirectionOut {
 		amount = amount.Neg()
 	}
+	merchant := cleanOptional(in.Merchant)
+
+	categoryID := in.CategoryID
 	source := domain.CategorySourceNone
-	if in.CategoryID != nil {
+	if categoryID != nil {
 		source = domain.CategorySourceManual
+	} else if cat, err := s.ruleCategory(ctx, userID, RuleRow{
+		Description: description,
+		Merchant:    merchant,
+		Amount:      amount,
+	}); err != nil {
+		return TransactionView{}, err
+	} else if cat != nil {
+		categoryID = cat
+		source = domain.CategorySourceRule
 	}
 
 	return s.store.CreateTransaction(ctx, CreateTransactionParams{
 		UserID:         userID,
 		AccountID:      in.AccountID,
-		CategoryID:     in.CategoryID,
+		CategoryID:     categoryID,
 		Description:    description,
-		Merchant:       cleanOptional(in.Merchant),
+		Merchant:       merchant,
 		Amount:         amount,
 		Direction:      in.Direction,
 		Currency:       currency,
@@ -303,6 +320,8 @@ func (s *Service) UpdateTransaction(ctx context.Context, userID, transactionID u
 	}
 
 	params := UpdateTransactionParams{UserID: userID, TransactionID: transactionID}
+	descriptionChanged := false
+	merchantSet := false
 
 	if in.AccountID != nil {
 		if _, err := s.store.GetAccount(ctx, userID, *in.AccountID); err != nil {
@@ -364,11 +383,13 @@ func (s *Service) UpdateTransaction(ctx context.Context, userID, transactionID u
 			return TransactionView{}, Invalid("description must be at most 200 characters")
 		}
 		params.Description = &description
+		descriptionChanged = true
 	}
 
 	if merchant, set := cleanOptionalPresent(in.Merchant); set {
 		params.SetMerchant = true
 		params.Merchant = merchant
+		merchantSet = true
 	}
 	if notes, set := cleanOptionalPresent(in.Notes); set {
 		params.SetNotes = true
@@ -383,6 +404,33 @@ func (s *Service) UpdateTransaction(ctx context.Context, userID, transactionID u
 			return TransactionView{}, Invalid("invalid status %q", *in.Status)
 		}
 		params.Status = in.Status
+	}
+
+	// Re-apply the rules when the identifying fields change and the category
+	// was not explicitly picked in this request. Rules only re-assign; they
+	// never clear a category (users clear categories on purpose).
+	if in.CategoryID == nil && existing.CategorySource != domain.CategorySourceManual &&
+		(descriptionChanged || merchantSet || signedChanged) {
+		row := RuleRow{Description: existing.Description, Merchant: existing.Merchant, Amount: existing.Amount}
+		if params.Description != nil {
+			row.Description = *params.Description
+		}
+		if params.SetMerchant {
+			row.Merchant = params.Merchant
+		}
+		if params.Amount != nil {
+			row.Amount = *params.Amount
+		}
+		cat, err := s.ruleCategory(ctx, userID, row)
+		if err != nil {
+			return TransactionView{}, err
+		}
+		if cat != nil {
+			source := domain.CategorySourceRule
+			params.SetCategory = true
+			params.CategoryID = cat
+			params.CategorySource = &source
+		}
 	}
 
 	return s.store.UpdateTransaction(ctx, params)
@@ -710,6 +758,11 @@ func (s *Service) PreviewImport(ctx context.Context, userID, accountID uuid.UUID
 		repeats[hash]++
 	}
 
+	suggestions, err := s.ruleSuggestionsFor(ctx, userID)
+	if err != nil {
+		return ImportPreview{}, err
+	}
+
 	preview := ImportPreview{Format: format, FileName: fileName, Total: len(rows), Skipped: skipped}
 	for i, row := range rows {
 		hash := hashes[i]
@@ -723,6 +776,13 @@ func (s *Service) PreviewImport(ctx context.Context, userID, accountID uuid.UUID
 			Direction:   string(row.Direction),
 			Duplicate:   existing[hash],
 			Repeated:    repeats[hash] > 1,
+		}
+		if category := suggestions.suggest(importRuleRow(row)); category != nil {
+			id := category.ID.String()
+			name := category.Name
+			view.CategoryID = &id
+			view.CategoryName = &name
+			view.CategorySource = string(domain.CategorySourceRule)
 		}
 		if view.Duplicate {
 			preview.Existing++
@@ -766,9 +826,13 @@ func (s *Service) CommitImport(ctx context.Context, userID, accountID uuid.UUID,
 	}
 
 	hashes := hashRows(accountID, rows)
+	suggestions, err := s.ruleSuggestionsFor(ctx, userID)
+	if err != nil {
+		return ImportResult{}, err
+	}
 	transactions := make([]ImportedTransaction, 0, len(rows))
 	for i, row := range rows {
-		transactions = append(transactions, ImportedTransaction{
+		transaction := ImportedTransaction{
 			Description: row.Description,
 			Merchant:    row.Merchant,
 			Reference:   row.Reference,
@@ -776,7 +840,13 @@ func (s *Service) CommitImport(ctx context.Context, userID, accountID uuid.UUID,
 			Direction:   row.Direction,
 			OccurredAt:  row.OccurredAt,
 			DedupeHash:  hashes[i],
-		})
+		}
+		if category := suggestions.suggest(importRuleRow(row)); category != nil {
+			id := category.ID
+			transaction.CategoryID = &id
+			transaction.CategorySource = domain.CategorySourceRule
+		}
+		transactions = append(transactions, transaction)
 	}
 	imported, err := s.store.InsertImportedTransactions(ctx, ImportInsertParams{
 		UserID:       userID,
@@ -787,6 +857,7 @@ func (s *Service) CommitImport(ctx context.Context, userID, accountID uuid.UUID,
 	if err != nil {
 		return ImportResult{}, err
 	}
+	s.maybeEnqueueReclassification(ctx, userID, accountID)
 	return ImportResult{
 		Total:     len(rows),
 		Imported:  int(imported),

@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 BIN   := bin/okane
 
-.PHONY: help dev db-up db-down migrate build test vet fmt run web-install web-dev tidy
+.PHONY: help dev db-up db-down migrate build test vet fmt run seed web-install web-dev tidy
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -14,6 +14,9 @@ db-down: ## Stop local Postgres
 
 migrate: ## Apply database migrations
 	go run ./cmd/okane migrate up
+
+seed: ## Create the demo@okane.dev dataset (idempotent)
+	go run ./cmd/okane seed
 
 build: ## Build the okane binary
 	go build -o $(BIN) ./cmd/okane

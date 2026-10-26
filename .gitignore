@@ -5,7 +5,7 @@
 
 # Go
 /bin/
-okane
+/okane
 *.test
 coverage.out
 

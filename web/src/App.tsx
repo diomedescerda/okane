@@ -6,6 +6,7 @@ import { AccountsPage } from "./pages/AccountsPage";
 import { BanksPage } from "./pages/BanksPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
+import { RulesPage } from "./pages/RulesPage";
 import { TransactionsPage } from "./pages/TransactionsPage";
 
 function Protected({ children }: { children: ReactNode }) {
@@ -52,6 +53,14 @@ export function App() {
         element={
           <Protected>
             <BanksPage />
+          </Protected>
+        }
+      />
+      <Route
+        path="/rules"
+        element={
+          <Protected>
+            <RulesPage />
           </Protected>
         }
       />

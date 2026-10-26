@@ -114,6 +114,7 @@ export function ImportModal({ account, onClose }: { account: Account; onClose: (
                   <tr>
                     <th className="px-3 py-2">Date</th>
                     <th className="px-3 py-2">Description</th>
+                    <th className="px-3 py-2">Category</th>
                     <th className="px-3 py-2 text-right">Amount</th>
                   </tr>
                 </thead>
@@ -132,6 +133,25 @@ export function ImportModal({ account, onClose }: { account: Account; onClose: (
                           <span className="ml-2 rounded bg-slate-800 px-1.5 py-0.5 text-[10px] uppercase text-slate-400">
                             in file
                           </span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2">
+                        {row.category_name ? (
+                          <span className="inline-flex items-center gap-1 text-xs">
+                            {row.category_name}
+                            {row.category_source === "rule" && (
+                              <span className="rounded bg-sky-500/10 px-1 py-px text-[10px] font-medium uppercase text-sky-400">
+                                R
+                              </span>
+                            )}
+                            {row.category_source === "ai" && (
+                              <span className="rounded bg-violet-500/10 px-1 py-px text-[10px] font-medium uppercase text-violet-400">
+                                AI
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-600">—</span>
                         )}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{formatSigned(row.amount, account.currency)}</td>

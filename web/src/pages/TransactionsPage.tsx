@@ -6,6 +6,7 @@ import { ApiError } from "../api/client";
 import { financeApi, monthRange, type Direction, type Transaction } from "../api/finance";
 import { AppLayout } from "../components/AppLayout";
 import { TransactionModal } from "../components/TransactionModal";
+import { EmptyState, ErrorMessage, Loading } from "../components/State";
 import { currentMonthValue, formatDate, formatSigned } from "../lib/format";
 
 const PAGE_SIZE = 50;
@@ -17,6 +18,7 @@ export function TransactionsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [accountId, setAccountId] = useState("");
   const [direction, setDirection] = useState<Direction | "">("");
+  const [uncategorized, setUncategorized] = useState(false);
   const [month, setMonth] = useState(currentMonthValue());
   const [offset, setOffset] = useState(0);
   const [modal, setModal] = useState<{ transaction?: Transaction } | null>(null);
@@ -29,7 +31,7 @@ export function TransactionsPage() {
 
   useEffect(() => {
     setOffset(0);
-  }, [debouncedSearch, accountId, direction, month]);
+  }, [debouncedSearch, accountId, direction, uncategorized, month]);
 
   const accountsQuery = useQuery({ queryKey: ["accounts"], queryFn: financeApi.accounts });
   const categoriesQuery = useQuery({ queryKey: ["categories"], queryFn: financeApi.categories });
@@ -38,11 +40,12 @@ export function TransactionsPage() {
   const range = month ? monthRange(month) : { from: undefined, to: undefined };
 
   const transactionsQuery = useQuery({
-    queryKey: ["transactions", { accountId, direction, search: debouncedSearch, month, offset }],
+    queryKey: ["transactions", { accountId, direction, uncategorized, search: debouncedSearch, month, offset }],
     queryFn: () =>
       financeApi.transactions({
         account_id: accountId || undefined,
         direction: direction || undefined,
+        uncategorized,
         search: debouncedSearch || undefined,
         from: range.from,
         to: range.to,
@@ -81,6 +84,7 @@ export function TransactionsPage() {
     setSearch("");
     setAccountId("");
     setDirection("");
+    setUncategorized(false);
     setMonth(currentMonthValue());
   }
 
@@ -133,6 +137,13 @@ export function TransactionsPage() {
               <option value="in">Income</option>
             </select>
           </label>
+          <button
+            className={`btn-secondary ${uncategorized ? "border-emerald-500/60 text-emerald-300" : ""}`}
+            aria-pressed={uncategorized}
+            onClick={() => setUncategorized((value) => !value)}
+          >
+            Uncategorized
+          </button>
           <label className="block">
             <span className="label">Month</span>
             <input
@@ -147,22 +158,20 @@ export function TransactionsPage() {
           </button>
         </div>
 
-        {error && (
-          <p className="rounded-lg border border-rose-900/60 bg-rose-950/40 px-3 py-2 text-sm text-rose-300">{error}</p>
-        )}
+        {error && <ErrorMessage message={error} />}
 
         {transactionsQuery.isLoading ? (
-          <p className="text-sm text-slate-500">Loading…</p>
+          <Loading />
         ) : transactions.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 p-10 text-center">
-            <div className="text-3xl">🧾</div>
-            <h2 className="mt-3 text-lg font-medium">No transactions found</h2>
-            <p className="mx-auto mt-1 max-w-md text-sm text-slate-400">
-              {accounts.length === 0
+          <EmptyState
+            icon="🧾"
+            title="No transactions found"
+            description={
+              accounts.length === 0
                 ? "Create an account, then start recording expenses and income."
-                : "Try changing the filters, or add a transaction."}
-            </p>
-          </div>
+                : "Try changing the filters, or add a transaction."
+            }
+          />
         ) : (
           <>
             <div className="overflow-hidden rounded-2xl border border-slate-800">
@@ -198,6 +207,22 @@ export function TransactionsPage() {
                                 style={{ backgroundColor: transaction.category_color ?? "#64748b" }}
                               />
                               {transaction.category_icon} {transaction.category_name}
+                              {transaction.category_source === "rule" && (
+                                <span
+                                  title="Categorized by a rule"
+                                  className="rounded bg-sky-500/10 px-1 py-px text-[10px] font-medium uppercase text-sky-400"
+                                >
+                                  R
+                                </span>
+                              )}
+                              {transaction.category_source === "ai" && (
+                                <span
+                                  title="Categorized by AI"
+                                  className="rounded bg-violet-500/10 px-1 py-px text-[10px] font-medium uppercase text-violet-400"
+                                >
+                                  AI
+                                </span>
+                              )}
                             </span>
                           ) : (
                             <span className="text-xs text-slate-500">Uncategorized</span>

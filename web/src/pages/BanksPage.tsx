@@ -13,6 +13,7 @@ import { AccountModal } from "../components/AccountModal";
 import { AppLayout } from "../components/AppLayout";
 import { InstitutionIcon } from "../components/InstitutionIcon";
 import { InstitutionModal } from "../components/InstitutionModal";
+import { EmptyState, ErrorMessage, Loading } from "../components/State";
 
 export function BanksPage() {
   const queryClient = useQueryClient();
@@ -99,22 +100,18 @@ export function BanksPage() {
           </button>
         </div>
 
-        {error && (
-          <p className="rounded-lg border border-rose-900/60 bg-rose-950/40 px-3 py-2 text-sm text-rose-300">{error}</p>
-        )}
+        <ErrorMessage message={error} />
 
         <section className="space-y-3">
           <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">My banks</h2>
           {linksQuery.isLoading ? (
-            <p className="text-sm text-slate-500">Loading…</p>
+            <Loading />
           ) : links.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 p-8 text-center">
-              <div className="text-3xl">🏦</div>
-              <h3 className="mt-3 text-lg font-medium">No banks connected yet</h3>
-              <p className="mx-auto mt-1 max-w-md text-sm text-slate-400">
-                Pick one of your banks below to create a connection, then attach your accounts to it.
-              </p>
-            </div>
+            <EmptyState
+              icon="🏦"
+              title="No banks connected yet"
+              description="Pick one of your banks below to create a connection, then attach your accounts to it."
+            />
           ) : (
             <ul className="divide-y divide-slate-800/80 overflow-hidden rounded-2xl border border-slate-800">
               {links.map((link) => (
@@ -177,7 +174,7 @@ export function BanksPage() {
           </div>
 
           {institutionsQuery.isLoading ? (
-            <p className="text-sm text-slate-500">Loading…</p>
+            <Loading />
           ) : institutions.length === 0 ? (
             <p className="text-sm text-slate-500">No banks match your search.</p>
           ) : (

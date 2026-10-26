@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: okane
+          POSTGRES_PASSWORD: okane
+          POSTGRES_DB: okane
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U okane -d okane"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      OKANE_DATABASE_URL: postgres://okane:okane@localhost:5432/okane?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+      - name: Format
+        run: test -z "$(gofmt -l .)"
+      - name: Vet
+        run: go vet ./...
+      - name: Build
+        run: go build ./...
+      - name: Test
+        run: go test ./...
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Build (tsc -b && vite build)
+        run: npm run build

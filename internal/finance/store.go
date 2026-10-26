@@ -308,6 +308,89 @@ func (s *Store) DeleteTransaction(ctx context.Context, userID, transactionID uui
 	return nil
 }
 
+// maxUncategorizedLimit caps ListUncategorizedTransactions when the caller
+// passes an unrealistic limit.
+const maxUncategorizedLimit = 500
+
+// LeanTransaction is an uncategorized transaction trimmed down to the fields
+// the AI categorizer needs. Amount is signed: negative is money out.
+type LeanTransaction struct {
+	ID          uuid.UUID
+	Description string
+	Merchant    *string
+	Amount      money.Amount
+	Direction   domain.Direction
+	OccurredAt  time.Time
+}
+
+// ListUncategorizedTransactions returns the newest transactions without a
+// category, optionally restricted to one account, for AI categorization.
+func (s *Store) ListUncategorizedTransactions(ctx context.Context, userID uuid.UUID, accountID *uuid.UUID, limit int) ([]LeanTransaction, error) {
+	if limit <= 0 || limit > maxUncategorizedLimit {
+		limit = maxUncategorizedLimit
+	}
+	q := `
+		SELECT id, description, merchant, amount, direction, occurred_at
+		FROM transactions
+		WHERE user_id = $1 AND category_id IS NULL`
+	args := []any{userID}
+	if accountID != nil {
+		q += fmt.Sprintf(" AND account_id = $%d", len(args)+1)
+		args = append(args, *accountID)
+	}
+	q += fmt.Sprintf(" ORDER BY occurred_at DESC, id LIMIT $%d", len(args)+1)
+	args = append(args, limit)
+
+	rows, err := s.pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list uncategorized transactions: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]LeanTransaction, 0)
+	for rows.Next() {
+		var t LeanTransaction
+		if err := rows.Scan(&t.ID, &t.Description, &t.Merchant, &t.Amount, &t.Direction, &t.OccurredAt); err != nil {
+			return nil, fmt.Errorf("scan uncategorized transaction: %w", err)
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// ApplyAICategories assigns categories to transactions in one batch. Rows are
+// only touched when they still have no category, so anything the user picked
+// meanwhile is never overwritten; it always stamps category_source = 'ai'.
+func (s *Store) ApplyAICategories(ctx context.Context, userID uuid.UUID, assigning map[uuid.UUID]uuid.UUID) (int64, error) {
+	if len(assigning) == 0 {
+		return 0, nil
+	}
+
+	var values strings.Builder
+	args := make([]any, 0, 2*len(assigning)+1)
+	placeholder := func(n int) string { return fmt.Sprintf("$%d", n) }
+	for id, categoryID := range assigning {
+		if len(args) > 0 {
+			values.WriteString(", ")
+		}
+		args = append(args, id, categoryID)
+		fmt.Fprintf(&values, "(%s::uuid, %s::uuid)",
+			placeholder(len(args)-1), placeholder(len(args)))
+	}
+
+	q := `UPDATE transactions t
+		SET category_id = d.category_id, category_source = 'ai', updated_at = now()
+		FROM (VALUES ` + values.String() + `) AS d (id, category_id)
+		WHERE t.id = d.id AND t.user_id = ` + placeholder(len(args)+1) + ` AND t.category_id IS NULL`
+	args = append(args, userID)
+
+	tag, err := s.pool.Exec(ctx, q, args...)
+	if err != nil {
+		return 0, fmt.Errorf("apply ai categories: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 func (s *Store) ListTransactions(ctx context.Context, f TransactionFilter) ([]TransactionView, int64, error) {
 	where := []string{"t.user_id = $1"}
 	args := []any{f.UserID}
@@ -321,6 +404,9 @@ func (s *Store) ListTransactions(ctx context.Context, f TransactionFilter) ([]Tr
 	}
 	if f.CategoryID != nil {
 		add("t.category_id = $%d", *f.CategoryID)
+	}
+	if f.Uncategorized {
+		where = append(where, "t.category_id IS NULL")
 	}
 	if f.Direction != nil {
 		add("t.direction = $%d", *f.Direction)
@@ -709,6 +795,170 @@ func (s *Store) DeleteLink(ctx context.Context, userID, linkID uuid.UUID) error 
 	return tx.Commit(ctx)
 }
 
+// --- Rules ---
+
+func scanRule(row pgx.Row) (domain.Rule, error) {
+	var r domain.Rule
+	err := row.Scan(
+		&r.ID, &r.UserID, &r.Priority, &r.CategoryID, &r.Field, &r.MatchType, &r.Pattern,
+		&r.Enabled, &r.CreatedAt, &r.UpdatedAt,
+	)
+	if err != nil {
+		return domain.Rule{}, err
+	}
+	return r, nil
+}
+
+const ruleColumns = `id, user_id, priority, category_id, field, match_type, pattern, enabled, created_at, updated_at`
+
+// ListRules returns the user's rules ordered by priority (creation order
+// breaks ties), enabled or not.
+func (s *Store) ListRules(ctx context.Context, userID uuid.UUID) ([]domain.Rule, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT `+ruleColumns+` FROM rules WHERE user_id = $1
+		 ORDER BY priority ASC, created_at ASC, id ASC`,
+		userID)
+	if err != nil {
+		return nil, fmt.Errorf("list rules: %w", err)
+	}
+	defer rows.Close()
+
+	rules := make([]domain.Rule, 0)
+	for rows.Next() {
+		r, err := scanRule(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan rule: %w", err)
+		}
+		rules = append(rules, r)
+	}
+	return rules, rows.Err()
+}
+
+// ListEnabledRules returns the user's enabled rules ready for matching.
+func (s *Store) ListEnabledRules(ctx context.Context, userID uuid.UUID) ([]domain.Rule, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT `+ruleColumns+` FROM rules WHERE user_id = $1 AND enabled
+		 ORDER BY priority ASC, created_at ASC, id ASC`,
+		userID)
+	if err != nil {
+		return nil, fmt.Errorf("list enabled rules: %w", err)
+	}
+	defer rows.Close()
+
+	rules := make([]domain.Rule, 0)
+	for rows.Next() {
+		r, err := scanRule(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan rule: %w", err)
+		}
+		rules = append(rules, r)
+	}
+	return rules, rows.Err()
+}
+
+// CreateRuleParams is the store input for creating a rule.
+type CreateRuleParams struct {
+	UserID     uuid.UUID
+	CategoryID uuid.UUID
+	Priority   int
+	Field      domain.MatchField
+	MatchType  domain.MatchType
+	Pattern    string
+	Enabled    bool
+}
+
+func (s *Store) CreateRule(ctx context.Context, p CreateRuleParams) (domain.Rule, error) {
+	r, err := scanRule(s.pool.QueryRow(ctx,
+		`INSERT INTO rules (user_id, priority, category_id, field, match_type, pattern, enabled)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		 RETURNING `+ruleColumns,
+		p.UserID, p.Priority, p.CategoryID, p.Field, p.MatchType, p.Pattern, p.Enabled))
+	if err != nil {
+		return domain.Rule{}, fmt.Errorf("create rule: %w", err)
+	}
+	return r, nil
+}
+
+// UpdateRuleParams is a partial rule update; nil fields are left unchanged.
+type UpdateRuleParams struct {
+	UserID     uuid.UUID
+	RuleID     uuid.UUID
+	Priority   *int
+	CategoryID *uuid.UUID
+	Field      *domain.MatchField
+	MatchType  *domain.MatchType
+	Pattern    *string
+	Enabled    *bool
+}
+
+func (s *Store) UpdateRule(ctx context.Context, p UpdateRuleParams) (domain.Rule, error) {
+	sets := make([]string, 0, 5)
+	args := []any{p.UserID, p.RuleID}
+	add := func(clause string, val any) {
+		args = append(args, val)
+		sets = append(sets, fmt.Sprintf(clause, len(args)))
+	}
+	if p.Priority != nil {
+		add("priority = $%d", *p.Priority)
+	}
+	if p.CategoryID != nil {
+		add("category_id = $%d", *p.CategoryID)
+	}
+	if p.Field != nil {
+		add("field = $%d", *p.Field)
+	}
+	if p.MatchType != nil {
+		add("match_type = $%d", *p.MatchType)
+	}
+	if p.Pattern != nil {
+		add("pattern = $%d", *p.Pattern)
+	}
+	if p.Enabled != nil {
+		add("enabled = $%d", *p.Enabled)
+	}
+	if len(sets) == 0 {
+		return s.GetRule(ctx, p.UserID, p.RuleID)
+	}
+
+	r, err := scanRule(s.pool.QueryRow(ctx,
+		`UPDATE rules SET `+strings.Join(sets, ", ")+`
+		 WHERE user_id = $1 AND id = $2
+		 RETURNING `+ruleColumns,
+		args...))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Rule{}, ErrNotFound
+	}
+	if err != nil {
+		return domain.Rule{}, fmt.Errorf("update rule: %w", err)
+	}
+	return r, nil
+}
+
+// GetRule returns a single rule owned by the user.
+func (s *Store) GetRule(ctx context.Context, userID, ruleID uuid.UUID) (domain.Rule, error) {
+	r, err := scanRule(s.pool.QueryRow(ctx,
+		`SELECT `+ruleColumns+` FROM rules WHERE user_id = $1 AND id = $2`, userID, ruleID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Rule{}, ErrNotFound
+	}
+	if err != nil {
+		return domain.Rule{}, fmt.Errorf("get rule: %w", err)
+	}
+	return r, nil
+}
+
+// DeleteRule removes a rule. Categorized transactions keep their categories.
+func (s *Store) DeleteRule(ctx context.Context, userID, ruleID uuid.UUID) error {
+	tag, err := s.pool.Exec(ctx, `DELETE FROM rules WHERE user_id = $1 AND id = $2`, userID, ruleID)
+	if err != nil {
+		return fmt.Errorf("delete rule: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // CountDedupeHashes returns the subset of hashes that already exist for the account.
 func (s *Store) CountDedupeHashes(ctx context.Context, accountID uuid.UUID, hashes []string) (map[string]bool, error) {
 	existing := make(map[string]bool, len(hashes))
@@ -743,21 +993,24 @@ func (s *Store) InsertImportedTransactions(ctx context.Context, p ImportInsertPa
 		return 0, nil
 	}
 	placeholders := make([]string, 0, len(p.Transactions))
-	args := make([]any, 0, len(p.Transactions)*10)
+	args := make([]any, 0, len(p.Transactions)*12)
 	for _, t := range p.Transactions {
 		base := len(args)
 		placeholders = append(placeholders, fmt.Sprintf(
-			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
-			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10,
+			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8,
+			base+9, base+10, base+11, base+12,
 		))
 		args = append(args,
 			p.UserID, p.AccountID, t.Description, t.Merchant, t.Reference,
 			p.Currency, t.Amount, t.Direction, t.OccurredAt, t.DedupeHash,
+			t.CategoryID, t.CategorySource,
 		)
 	}
 	q := `
 		INSERT INTO transactions
-			(user_id, account_id, description, merchant, reference, currency, amount, direction, occurred_at, dedupe_hash)
+			(user_id, account_id, description, merchant, reference, currency, amount, direction,
+			 occurred_at, dedupe_hash, category_id, category_source)
 		VALUES ` + strings.Join(placeholders, ", ") + `
 		ON CONFLICT (account_id, dedupe_hash) WHERE dedupe_hash IS NOT NULL DO NOTHING`
 	tag, err := s.pool.Exec(ctx, q, args...)

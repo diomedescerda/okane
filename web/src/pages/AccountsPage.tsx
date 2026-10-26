@@ -8,6 +8,7 @@ import { AccountModal } from "../components/AccountModal";
 import { ImportModal } from "../components/ImportModal";
 import { AppLayout } from "../components/AppLayout";
 import { InstitutionIcon } from "../components/InstitutionIcon";
+import { EmptyState, ErrorMessage, Loading } from "../components/State";
 import { formatMoney } from "../lib/format";
 
 const TYPE_ICONS: Record<string, string> = {
@@ -59,27 +60,28 @@ export function AccountsPage() {
           </button>
         </div>
 
-        {error && (
-          <p className="rounded-lg border border-rose-900/60 bg-rose-950/40 px-3 py-2 text-sm text-rose-300">{error}</p>
-        )}
+        <ErrorMessage message={error} />
 
         {accountsQuery.isLoading ? (
-          <p className="text-sm text-slate-500">Loading…</p>
+          <Loading />
         ) : accounts.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 p-10 text-center">
-            <div className="text-3xl">🏦</div>
-            <h2 className="mt-3 text-lg font-medium">No accounts yet</h2>
-            <p className="mx-auto mt-1 max-w-md text-sm text-slate-400">
-              Add the accounts you want to track. Connect a bank from the{" "}
-              <Link to="/banks" className="text-emerald-400 hover:text-emerald-300">
-                Banks
-              </Link>{" "}
-              page or add them manually.
-            </p>
-            <button className="btn-primary mt-4" onClick={() => setModal({})}>
+          <EmptyState
+            icon="🏦"
+            title="No accounts yet"
+            description={
+              <>
+                Add the accounts you want to track. Connect a bank from the{" "}
+                <Link to="/banks" className="text-emerald-400 hover:text-emerald-300">
+                  Banks
+                </Link>{" "}
+                page or add them manually.
+              </>
+            }
+          >
+            <button className="btn-primary" onClick={() => setModal({})}>
               Add your first account
             </button>
-          </div>
+          </EmptyState>
         ) : (
           <div className="overflow-hidden rounded-2xl border border-slate-800">
             <table className="w-full text-sm">

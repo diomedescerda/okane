@@ -22,6 +22,16 @@ func New(s string) Amount {
 	return Amount{Decimal: decimal.RequireFromString(s)}
 }
 
+// Parse converts a string into an Amount, reporting the error instead of
+// panicking; used on input paths where the string comes from users.
+func Parse(s string) (Amount, error) {
+	d, err := decimal.NewFromString(s)
+	if err != nil {
+		return Amount{}, fmt.Errorf("invalid money amount %q", s)
+	}
+	return Amount{Decimal: d}, nil
+}
+
 func FromDecimal(d decimal.Decimal) Amount { return Amount{Decimal: d} }
 
 func FromFloat(f float64) Amount { return Amount{Decimal: decimal.NewFromFloat(f)} }

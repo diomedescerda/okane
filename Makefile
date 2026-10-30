@@ -1,7 +1,22 @@
 SHELL := /bin/bash
 BIN   := bin/okane
 
-.PHONY: help dev db-up db-down migrate build test vet fmt run seed web-install web-dev tidy
+.PHONY: help dev db-up db-down migrate build test vet fmt run seed web-install web-dev tidy up down status api web db logs
+
+up: ## Start the whole dev stack (postgres, api, web)
+	@./scripts/dev.sh up
+
+down: ## Stop the dev stack (data is kept)
+	@./scripts/dev.sh down
+
+status: ## Show what is running (postgres, api, web)
+	@./scripts/dev.sh status
+
+logs: ## Tail logs: make logs [api|web|db] (default api)
+	@./scripts/dev.sh logs $(filter-out $@,$(MAKECMDGOALS))
+
+api web db: ## used by `make logs api` etc.
+	@:
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'

@@ -37,3 +37,4 @@ xcuserdata/
 /data/
 deploy/backups/
 *.dump
+.run/

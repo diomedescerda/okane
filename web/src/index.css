@@ -8,6 +8,13 @@ body {
   @apply bg-slate-950 text-slate-100 antialiased;
 }
 
+/* iOS standalone safe areas (status bar / home indicator) */
+html {
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
 @layer components {
   .input {
     @apply w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500;

@@ -63,8 +63,29 @@ export function AppLayout({ children }: { children: ReactNode }) {
             Sign out
           </button>
         </header>
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex-1 p-6 pb-24 md:pb-6">{children}</main>
       </div>
+
+      <nav className="fixed inset-x-0 bottom-0 z-10 flex border-t border-slate-800 bg-slate-950/95 pb-[env(safe-area-inset-bottom)] md:hidden">
+        {NAV.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={({ isActive }) =>
+              `flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${
+                item.enabled
+                  ? isActive
+                    ? "text-white"
+                    : "text-slate-400"
+                  : "pointer-events-none text-slate-600"
+              }`
+            }
+          >
+            <span>{item.label}</span>
+            {!item.enabled && <span className="text-[9px] uppercase text-slate-600">soon</span>}
+          </NavLink>
+        ))}
+      </nav>
     </div>
   );
 }

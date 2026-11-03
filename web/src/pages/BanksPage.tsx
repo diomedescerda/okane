@@ -88,7 +88,7 @@ export function BanksPage() {
   return (
     <AppLayout>
       <div className="mx-auto max-w-5xl space-y-8">
-        <div className="flex items-center justify-between">
+        <div className="page-header">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Banks</h1>
             <p className="mt-1 text-sm text-slate-400">
@@ -115,7 +115,7 @@ export function BanksPage() {
           ) : (
             <ul className="divide-y divide-slate-800/80 overflow-hidden rounded-2xl border border-slate-800">
               {links.map((link) => (
-                <li key={link.id} className="flex items-center gap-3 bg-slate-900/40 px-4 py-3">
+                <li key={link.id} className="flex flex-wrap items-center gap-3 bg-slate-900/40 px-4 py-4">
                   <InstitutionIcon
                     name={link.institution_name}
                     logoUrl={link.institution_logo_url}
@@ -123,8 +123,8 @@ export function BanksPage() {
                     color={link.institution_primary_color}
                     size="lg"
                   />
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium">{link.institution_name}</div>
+                  <div className="min-w-0 flex-1 basis-[calc(100%-4rem)] md:basis-0">
+                    <div className="break-words font-medium">{link.institution_name}</div>
                     <div className="text-xs text-slate-500">
                       {link.account_count === 0
                         ? "No accounts attached yet"
@@ -153,15 +153,17 @@ export function BanksPage() {
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">Add a bank</h2>
-            <div className="flex gap-2">
+            <div className="grid w-full min-w-0 grid-cols-1 gap-2 min-[420px]:grid-cols-[minmax(0,1fr)_8rem] sm:w-auto">
               <input
-                className="input w-56"
+                className="input sm:w-56"
+                aria-label="Search banks"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search banks…"
               />
               <select
-                className="input w-32"
+                className="input"
+                aria-label="Bank type"
                 value={typeFilter}
                 onChange={(event) => setTypeFilter(event.target.value as InstitutionType | "")}
               >
@@ -178,13 +180,13 @@ export function BanksPage() {
           ) : institutions.length === 0 ? (
             <p className="text-sm text-slate-500">No banks match your search.</p>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
               {institutions.map((institution) => {
                 const connected = institution.link_count > 0;
                 return (
                   <div
                     key={institution.id}
-                    className="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/40 p-4"
+                    className="flex min-w-0 flex-wrap items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/40 p-4"
                   >
                     <InstitutionIcon
                       name={institution.display_name}
@@ -193,9 +195,9 @@ export function BanksPage() {
                       color={institution.primary_color}
                       size="lg"
                     />
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 basis-[calc(100%-4rem)]">
                       <div className="truncate font-medium">{institution.display_name}</div>
-                      <div className="text-xs text-slate-500">
+                      <div className="break-words text-xs text-slate-500">
                         {INSTITUTION_TYPE_LABELS[institution.type]}
                         {institution.website ? ` · ${new URL(institution.website).hostname}` : ""}
                       </div>
@@ -218,6 +220,7 @@ export function BanksPage() {
                         onClick={() => onDeleteInstitution(institution)}
                         disabled={deleteInstitutionMutation.isPending}
                         title="Delete custom bank"
+                        aria-label={`Delete ${institution.display_name}`}
                       >
                         ✕
                       </button>

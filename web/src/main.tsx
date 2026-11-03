@@ -24,3 +24,12 @@ createRoot(document.getElementById("root")!).render(
     </QueryClientProvider>
   </StrictMode>,
 );
+
+// Development stays network-only; the production build includes sw.js.
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    void navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).catch((error) => {
+      console.error("Could not register the app shell for offline use", error);
+    });
+  }, { once: true });
+}

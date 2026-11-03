@@ -1,3 +1,5 @@
+import { fetchWithConnectionStatus } from "../lib/connection";
+
 export interface User {
   id: string;
   email: string;
@@ -22,7 +24,7 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetchWithConnectionStatus(path, {
     credentials: "include",
     ...init,
     headers: {

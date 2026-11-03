@@ -16,7 +16,7 @@ export function EmptyState({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 p-10 text-center">
+    <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/30 px-5 py-10 text-center sm:p-10">
       {icon && <div className="text-3xl">{icon}</div>}
       <h2 className="mt-3 text-lg font-medium">{title}</h2>
       {description && <p className="mx-auto mt-1 max-w-md text-sm text-slate-400">{description}</p>}

@@ -1,4 +1,5 @@
 import { ApiError, api } from "./client";
+import { fetchWithConnectionStatus } from "../lib/connection";
 
 export type AccountType = "checking" | "savings" | "credit_card" | "loan" | "investment" | "other";
 export type Direction = "in" | "out";
@@ -350,7 +351,7 @@ export const financeApi = {
     const form = new FormData();
     form.set("file", file);
     if (commit) form.set("commit", "true");
-    const res = await fetch(`/api/v1/accounts/${accountId}/imports`, {
+    const res = await fetchWithConnectionStatus(`/api/v1/accounts/${accountId}/imports`, {
       method: "POST",
       credentials: "include",
       body: form,

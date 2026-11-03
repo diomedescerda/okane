@@ -53,7 +53,7 @@ export function AccountsPage() {
   return (
     <AppLayout>
       <div className="mx-auto max-w-5xl space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="page-header">
           <h1 className="text-2xl font-semibold tracking-tight">Accounts</h1>
           <button className="btn-primary" onClick={() => setModal({})}>
             + New account
@@ -83,8 +83,8 @@ export function AccountsPage() {
             </button>
           </EmptyState>
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-slate-800">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-2xl border border-slate-800">
+            <table role="table" className="responsive-table text-sm">
               <thead className="bg-slate-900/80 text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-3 font-medium">Account</th>
@@ -97,7 +97,7 @@ export function AccountsPage() {
               <tbody className="divide-y divide-slate-800/80">
                 {accounts.map((account) => (
                   <tr key={account.id} className={account.is_active ? "" : "opacity-50"}>
-                    <td className="px-4 py-3">
+                    <td data-label="Account" className="px-4 py-3">
                       <div className="flex items-center gap-2 font-medium">
                         {account.link_id ? (
                           <InstitutionIcon
@@ -110,7 +110,7 @@ export function AccountsPage() {
                         ) : (
                           <span aria-hidden>{TYPE_ICONS[account.type] ?? "💼"}</span>
                         )}
-                        {account.name}
+                        <span className="min-w-0 break-words">{account.name}</span>
                         {!account.is_active && <span className="text-xs text-slate-500">(inactive)</span>}
                       </div>
                       <div className="text-xs text-slate-500">
@@ -118,16 +118,17 @@ export function AccountsPage() {
                         {account.link_id ? " · linked" : ""}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-slate-400">{ACCOUNT_TYPE_LABELS[account.type]}</td>
+                    <td data-label="Type" className="px-4 py-3 text-slate-400">{ACCOUNT_TYPE_LABELS[account.type]}</td>
                     <td
+                      data-label="Balance"
                       className={`px-4 py-3 text-right tabular-nums ${
                         Number(account.balance_current) < 0 ? "text-rose-400" : "text-slate-100"
                       }`}
                     >
                       {formatMoney(account.balance_current, account.currency)}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-slate-400">{account.transaction_count}</td>
-                    <td className="px-4 py-3">
+                    <td data-label="Transactions" className="px-4 py-3 text-right tabular-nums text-slate-400">{account.transaction_count}</td>
+                    <td data-label="Actions" className="px-4 py-3">
                       <div className="flex justify-end gap-1">
                         <button className="btn-ghost" onClick={() => setImportModal({ account })}>
                           Import

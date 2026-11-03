@@ -51,5 +51,7 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
-      - name: Build (tsc -b && vite build)
+      - name: Connection status tests
+        run: npm test
+      - name: Build web and PWA shell
         run: npm run build

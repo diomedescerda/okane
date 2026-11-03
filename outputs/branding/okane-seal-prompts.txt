@@ -1,0 +1,19 @@
+Generated with the built-in image_gen tool.
+
+Standalone icon
+
+Use case: precise-object-edit / logo-brand.
+Input image 1 is an edit target: the existing Okane branding exploration sheet. The user has selected ONLY the rightmost SEAL design.
+Create one standalone transparent-background logo icon extracted and carefully refined from the RIGHTMOST SEAL icon. Preserve that specific design: dense dark pine-green brush-ink impression, an organic rounded roughly square silhouette, with the exact kanji 金 revealed as transparent negative space. Preserve the reference's recognizably correct 金 structure, brush-cut counterspaces, shape, proportions and visual identity. This is refinement and isolation of the chosen mark, not a redesign and not a typed letter.
+Remove the two other concepts, ALL lettering, the おかね wordmark, the English SEAL label, and the ivory background.
+The only visible object is the selected seal icon. Use one flat dark pine-green ink color matching the reference. Preserve authentic brush pressure, subtly ragged edges and a few intentional dry-brush gaps; gently reduce detached speckles so the silhouette works as a small app icon. Keep the cutout strokes open and clean. No frame, no added container, no shadow, no lighting, no gradients, no white fill in the cutouts, no new motifs. Genuine alpha transparency across all background and interior cutout spaces.
+Composition: square high-resolution PNG, icon centered with about 12 percent clear margin on each side. Artwork entirely inside canvas.
+
+Stacked logo lockup
+
+Use case: compositing / logo-brand.
+Create the selected Okane SEAL logo as one transparent-background stacked lockup.
+Input image 1 is the approved standalone seal icon. Treat it as the fixed icon artwork: preserve its exact organic rounded-square silhouette, dark pine-green ink color, recognizably correct 金 in negative space, ragged brush edges and internal stroke proportions. Do not redesign the seal.
+Input image 2 is the original concept sheet. Use ONLY the rightmost column as the reference for the exact brush-written wordmark "おかね" and the relative stacked composition. Discard all other concepts and all English labels.
+Composition: reproduce a clean centered vertical logo lockup, approved seal above and the wordmark "おかね" below, with generous breathing space between them. Seal approximately the same width as the wordmark, or slightly narrower. Both align along a common vertical centerline. The wordmark is authentic hand-brushed Japanese fude/shodo with rounded confident thick-thin strokes, tapered ends and restrained dry brush texture, matching the rightmost original wordmark. All three hiragana must be correct and clearly legible: exactly お + か + ね. Preserve the wordmark reference's personality and stroke formation. Use the same pine-green ink for both pieces. No Latin lettering, no SEAL label, no extra Japanese characters, no tagline.
+Background and ALL cutout spaces must have genuine alpha transparency, including the 金 shape within the seal. No white or ivory fill. Single flat-color artwork with physical brush-edge character. No gradients, no shadows, no mockup, no app tile, no 3D, no frame or background props. Artwork wholly inside canvas, about 12 percent clear outer margins. Output one high-resolution PNG.

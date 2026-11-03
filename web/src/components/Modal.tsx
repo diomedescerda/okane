@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 
 interface ModalProps {
   title: string;
@@ -8,37 +8,76 @@ interface ModalProps {
 }
 
 export function Modal({ title, onClose, children, footer }: ModalProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+
   useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+    const dialog = dialogRef.current!;
+    const returnFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const viewport = window.visualViewport;
+    function sizeToViewport() {
+      dialog.style.setProperty(
+        "--dialog-viewport-height",
+        `${viewport?.height ?? window.innerHeight}px`,
+      );
+      dialog.style.setProperty(
+        "--dialog-offset-top",
+        `${viewport?.offsetTop ?? 0}px`,
+      );
     }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+    sizeToViewport();
+    viewport?.addEventListener("resize", sizeToViewport);
+    viewport?.addEventListener("scroll", sizeToViewport);
+    window.addEventListener("resize", sizeToViewport);
+    dialog.showModal();
+    return () => {
+      viewport?.removeEventListener("resize", sizeToViewport);
+      viewport?.removeEventListener("scroll", sizeToViewport);
+      window.removeEventListener("resize", sizeToViewport);
+      dialog.close();
+      document.body.style.overflow = previousOverflow;
+      if (returnFocus instanceof HTMLElement && returnFocus.isConnected) {
+        returnFocus.focus({ preventScroll: true });
+      }
+    };
+  }, []);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4"
-      onMouseDown={onClose}
+    <dialog
+      ref={dialogRef}
+      aria-labelledby={titleId}
+      className="app-dialog"
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
     >
-      <div
-        className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
-          <h2 className="font-medium">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg px-2 text-lg leading-none text-slate-500 hover:bg-slate-800 hover:text-slate-200"
-            aria-label="Close"
-          >
-            ×
-          </button>
-        </div>
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t border-slate-800 px-5 py-4">{footer}</div>}
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-800 px-5 py-3">
+        <h2 id={titleId} className="min-w-0 break-words font-medium">
+          {title}
+        </h2>
+        <button
+          type="button"
+          onClick={onClose}
+          className="btn-ghost size-11 shrink-0 text-2xl"
+          aria-label="Close"
+        >
+          ×
+        </button>
       </div>
-    </div>
+      <div className="min-h-0 overflow-y-auto overscroll-contain px-5 py-4">
+        {children}
+      </div>
+      {footer && (
+        <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-800 px-5 py-4">
+          {footer}
+        </div>
+      )}
+    </dialog>
   );
 }

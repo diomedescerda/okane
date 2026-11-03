@@ -66,16 +66,16 @@ export function DashboardPage() {
   return (
     <AppLayout>
       <div className="mx-auto max-w-5xl space-y-6">
-        <div className="flex items-baseline justify-between">
+        <div className="page-header">
           <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
           <span className="text-sm capitalize text-slate-500">{thisMonthLabel()}</span>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 xl:grid-cols-4">
           {cards.map((card) => (
-            <div key={card.label} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+            <div key={card.label} className="min-w-0 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 sm:p-5">
               <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{card.label}</div>
-              <div className={`mt-2 text-2xl font-semibold tabular-nums ${card.tone}`}>
+              <div className={`mt-3 break-words text-[clamp(1.1rem,2.2vw,1.65rem)] font-semibold tabular-nums [overflow-wrap:anywhere] ${card.tone}`}>
                 {card.prefix}
                 {formatMoney(Math.abs(Number(card.value)), currency)}
               </div>
@@ -92,14 +92,14 @@ export function DashboardPage() {
               <ul className="mt-4 space-y-3">
                 {expenseTotals.map((category) => (
                   <li key={category.category_id ?? "uncategorized"}>
-                    <div className="flex items-baseline justify-between text-sm">
-                      <span>
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
+                      <span className="min-w-0 break-words">
                         {category.icon} {category.name}
                         <span className="ml-2 text-xs text-slate-500">
                           {category.count} transaction{category.count === 1 ? "" : "s"}
                         </span>
                       </span>
-                      <span className="tabular-nums text-rose-400">
+                      <span className="break-words tabular-nums text-rose-400 [overflow-wrap:anywhere]">
                         −{formatMoney(Math.abs(Number(category.total)), currency)}
                       </span>
                     </div>
@@ -108,7 +108,7 @@ export function DashboardPage() {
                         className="h-full rounded-full"
                         style={{
                           width: `${(Math.abs(Number(category.total)) / maxExpense) * 100}%`,
-                          backgroundColor: category.color ?? "#34d399",
+                          backgroundColor: category.color ?? "var(--color-emerald-400)",
                         }}
                       />
                     </div>
@@ -157,7 +157,7 @@ export function DashboardPage() {
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="font-medium">Recent transactions</h2>
             <Link to="/transactions" className="text-sm text-emerald-400 hover:text-emerald-300">
               View all →
@@ -168,16 +168,16 @@ export function DashboardPage() {
           ) : (
             <ul className="mt-2 divide-y divide-slate-800/80">
               {recent.map((transaction) => (
-                <li key={transaction.id} className="flex items-center justify-between gap-4 py-3 text-sm">
+                <li key={transaction.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-4 text-sm">
                   <div className="min-w-0">
                     <div className="truncate font-medium">{transaction.description}</div>
-                    <div className="text-xs text-slate-500">
+                    <div className="break-words text-xs text-slate-500">
                       {formatDate(transaction.occurred_at)} · {transaction.account_name}
                       {transaction.category_name ? ` · ${transaction.category_name}` : ""}
                     </div>
                   </div>
                   <span
-                    className={`shrink-0 tabular-nums ${
+                    className={`max-w-full break-words tabular-nums [overflow-wrap:anywhere] ${
                       transaction.direction === "in" ? "text-emerald-400" : "text-rose-400"
                     }`}
                   >

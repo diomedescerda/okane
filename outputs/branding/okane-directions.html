@@ -1,0 +1,63 @@
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@500;700&family=Noto+Serif+JP:wght@500&family=Zen+Maru+Gothic:wght@500&display=swap" rel="stylesheet">
+<style>
+  #okane-brand-directions { color:var(--foreground); font-family:var(--font-sans); }
+  #okane-brand-directions * { box-sizing:border-box; }
+  #okane-brand-directions .directions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+  #okane-brand-directions section { min-width:0; }
+  #okane-brand-directions .concept-name { margin:0 0 12px; font-size:14px; font-weight:500; }
+  #okane-brand-directions .specimen { border-radius:var(--radius); padding:24px 16px; height:296px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px; background:var(--brand-paper); color:var(--brand-ink); }
+  #okane-brand-directions .modern { --brand-paper:light-dark(#e7f2ed,#112c26); --brand-ink:light-dark(#123c31,#b3f1ce); --brand-accent:#64cf98; }
+  #okane-brand-directions .friendly { --brand-paper:light-dark(#f1edfa,#2a2237); --brand-ink:light-dark(#4a345e,#ead7ff); --brand-accent:#c6a5e7; }
+  #okane-brand-directions .editorial { --brand-paper:light-dark(#f4eee1,#30291e); --brand-ink:light-dark(#403222,#f0d6a2); --brand-accent:#d3ae62; }
+  #okane-brand-directions .app-icon { width:66px; height:66px; border-radius:18px; display:grid; place-items:center; background:var(--brand-ink); color:var(--brand-paper); font-size:40px; font-weight:500; line-height:1; }
+  #okane-brand-directions .modern .jp { font-family:'Noto Sans JP',sans-serif; }
+  #okane-brand-directions .friendly .jp { font-family:'Zen Maru Gothic',sans-serif; }
+  #okane-brand-directions .editorial .jp { font-family:'Noto Serif JP',serif; }
+  #okane-brand-directions .wordmark { font-size:43px; font-weight:500; white-space:nowrap; line-height:1.3; letter-spacing:-.04em; }
+  #okane-brand-directions .latin { margin-top:6px; font-family:var(--font-sans); font-size:17px; letter-spacing:.15em; text-align:center; }
+  #okane-brand-directions .tagline { font-size:12px; letter-spacing:0; }
+  #okane-brand-directions .swatches { display:flex; gap:5px; margin-top:14px; }
+  #okane-brand-directions .swatches span { height:7px; flex:1; border-radius:3px; }
+  #okane-brand-directions .swatches span:nth-child(1) { background:var(--brand-ink); }
+  #okane-brand-directions .swatches span:nth-child(2) { background:var(--brand-accent); }
+  #okane-brand-directions .swatches span:nth-child(3) { background:var(--brand-paper); }
+  #okane-brand-directions .caption { color:var(--muted-foreground); font-size:12px; margin:9px 0 0; }
+  @media(max-width:560px) {
+    #okane-brand-directions .directions { grid-template-columns:1fr; gap:24px; }
+    #okane-brand-directions .specimen { height:250px; }
+  }
+</style>
+<div id="okane-brand-directions">
+  <div class="directions">
+    <section class="modern" aria-label="Katakana branding concept, precise geometric lettering with pine and mint colors">
+      <h3 class="concept-name">Katakana · Precise</h3>
+      <div class="specimen">
+        <div class="app-icon jp" lang="ja" aria-label="App icon: the kana o">オ</div>
+        <div><div class="wordmark jp" lang="ja">オカネ</div><div class="latin">okane</div></div>
+        <div class="tagline">Tu dinero, en claro.</div>
+      </div>
+      <div class="swatches" aria-hidden="true"><span></span><span></span><span></span></div>
+      <p class="caption">Pine / mint / soft neutral</p>
+    </section>
+    <section class="friendly" aria-label="Hiragana branding concept, rounded lettering with plum and lilac colors">
+      <h3 class="concept-name">Hiragana · Friendly</h3>
+      <div class="specimen">
+        <div class="app-icon jp" lang="ja" aria-label="App icon: the hiragana o">お</div>
+        <div><div class="wordmark jp" lang="ja">おかね</div><div class="latin">okane</div></div>
+        <div class="tagline">Tu dinero, en claro.</div>
+      </div>
+      <div class="swatches" aria-hidden="true"><span></span><span></span><span></span></div>
+      <p class="caption">Plum / lilac / soft neutral</p>
+    </section>
+    <section class="editorial" aria-label="Kanji branding concept, serif lettering and a gold character emblem with ink and brass colors">
+      <h3 class="concept-name">Kanji · Understated</h3>
+      <div class="specimen">
+        <div class="app-icon jp" lang="ja" aria-label="App icon: the kanji for money or gold">金</div>
+        <div><div class="wordmark jp" lang="ja">お金</div><div class="latin">okane</div></div>
+        <div class="tagline">Tu dinero, en claro.</div>
+      </div>
+      <div class="swatches" aria-hidden="true"><span></span><span></span><span></span></div>
+      <p class="caption">Ink / brass / soft neutral</p>
+    </section>
+  </div>
+</div>

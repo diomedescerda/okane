@@ -1,35 +1,251 @@
 @import "tailwindcss";
 
+@theme {
+  --color-slate-50: #faf9f2;
+  --color-slate-100: #f1f0e8;
+  --color-slate-200: #dce3d9;
+  --color-slate-300: #c2cfc2;
+  --color-slate-400: #a7b8a9;
+  --color-slate-500: #8c9f90;
+  --color-slate-600: #718676;
+  --color-slate-700: #405747;
+  --color-slate-800: #293c30;
+  --color-slate-900: #14251c;
+  --color-slate-950: #0c1812;
+  --color-emerald-50: #f1f8ec;
+  --color-emerald-100: #e3f0da;
+  --color-emerald-200: #cfe5c2;
+  --color-emerald-300: #bdddab;
+  --color-emerald-400: #afd39b;
+  --color-emerald-500: #9bc386;
+  --color-emerald-600: #75a361;
+  --color-emerald-700: #4a7540;
+  --color-emerald-800: #31562d;
+  --color-emerald-900: #234025;
+  --color-emerald-950: #122b19;
+}
+
 :root {
   color-scheme: dark;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+  --brand-paper: #f8f3e7;
 }
 
 body {
-  @apply bg-slate-950 text-slate-100 antialiased;
+  @apply m-0 bg-slate-950 text-slate-100 antialiased;
+  min-width: 320px;
 }
 
-/* iOS standalone safe areas (status bar / home indicator) */
-html {
-  padding-top: env(safe-area-inset-top);
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+button:not(:disabled),
+a {
+  cursor: pointer;
+}
+:focus-visible {
+  outline: 2px solid var(--color-emerald-400);
+  outline-offset: 4px;
+}
+::selection {
+  background: var(--color-emerald-700);
+  color: var(--color-slate-50);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }
 
 @layer components {
   .input {
-    @apply w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500;
+    @apply min-h-11 min-w-0 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-base text-slate-100 placeholder:text-slate-600 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 sm:text-sm;
   }
   .label {
     @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500;
   }
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60;
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3.5 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-ghost {
-    @apply rounded-lg px-2 py-1 text-xs font-medium text-slate-400 transition hover:bg-slate-800 hover:text-slate-200 disabled:opacity-50;
+    @apply inline-flex min-h-11 items-center justify-center rounded-lg px-3 py-2 text-sm font-medium text-slate-400 transition hover:bg-slate-800 hover:text-slate-200 disabled:opacity-50;
+  }
+  .page-header {
+    @apply flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center;
+  }
+  .form-grid {
+    @apply grid grid-cols-1 gap-4 sm:grid-cols-2;
+  }
+  .form-grid > *,
+  form label {
+    min-width: 0;
+  }
+  .brand-mark {
+    display: block;
+    background: currentColor;
+    mask: url("/brand/seal.webp") center / contain no-repeat;
+  }
+  .brand-wordmark {
+    display: block;
+    background: currentColor;
+    mask: url("/brand/wordmark.webp") center / contain no-repeat;
+  }
+  .app-shell {
+    min-height: 100dvh;
+    padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+  }
+  .app-header {
+    padding-top: calc(0.75rem + env(safe-area-inset-top));
+  }
+  .app-main {
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+  }
+  .mobile-nav {
+    padding: 0.5rem max(0.5rem, env(safe-area-inset-right))
+      max(0.5rem, env(safe-area-inset-bottom))
+      max(0.5rem, env(safe-area-inset-left));
+  }
+  .responsive-table {
+    width: 100%;
+    min-width: 44rem;
+  }
+  .responsive-table td {
+    overflow-wrap: anywhere;
+  }
+  .app-dialog {
+    position: fixed;
+    inset: auto 0;
+    top: calc(
+      var(--dialog-offset-top, 0px) + var(--dialog-viewport-height, 100dvh) / 2
+    );
+    transform: translateY(-50%);
+    margin: 0 auto;
+    padding: 0;
+    width: min(
+      34rem,
+      calc(100% - 2rem - env(safe-area-inset-left) - env(safe-area-inset-right))
+    );
+    max-width: none;
+    max-height: calc(
+      var(--dialog-viewport-height, 100dvh) - 2rem - env(safe-area-inset-top) -
+        env(safe-area-inset-bottom)
+    );
+    overflow: hidden;
+    color: var(--color-slate-100);
+    background: var(--color-slate-900);
+    border: 1px solid var(--color-slate-700);
+    border-radius: 1.5rem;
+    box-shadow: 0 24px 80px #0008;
+  }
+  .app-dialog[open] {
+    display: flex;
+    flex-direction: column;
+  }
+  .app-dialog::backdrop {
+    background: #06100cd9;
+    backdrop-filter: blur(6px);
+  }
+  @media (min-width: 1024px) {
+    .app-main {
+      padding-bottom: 2rem;
+    }
   }
 }
 
+/* These rules override desktop cell utilities when the table becomes cards. */
+@media (max-width: 767px) {
+  .responsive-table,
+  .responsive-table tbody {
+    display: block;
+    min-width: 0;
+  }
+  .responsive-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .responsive-table tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    padding: 1rem;
+  }
+  .responsive-table td {
+    display: block;
+    min-width: 0;
+    padding: 0;
+    text-align: left;
+    white-space: normal;
+  }
+  .responsive-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.35rem;
+    color: var(--color-slate-500);
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .responsive-table td:first-child,
+  .responsive-table td:last-child,
+  .responsive-table td[data-label="Description"] {
+    grid-column: 1 / -1;
+  }
+  .responsive-table td:last-child::before {
+    display: none;
+  }
+  .responsive-table td:last-child > div {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 0.5rem;
+  }
+  .responsive-table td[data-label="Amount"],
+  .responsive-table td[data-label="Balance"] {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+  .transaction-table td[data-label="Description"] {
+    order: 0;
+  }
+  .transaction-table td[data-label="Date"] {
+    order: 1;
+    grid-column: auto;
+  }
+  .transaction-table td[data-label="Amount"] {
+    order: 2;
+  }
+  .transaction-table td[data-label="Category"] {
+    order: 3;
+  }
+  .transaction-table td[data-label="Account"] {
+    order: 4;
+  }
+  .transaction-table td[data-label="Actions"] {
+    order: 5;
+  }
+}

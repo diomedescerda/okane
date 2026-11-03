@@ -131,7 +131,23 @@ batches uncategorized transactions and asks the model to assign categories.
 Rules run first at import time; AI fills only what rules missed. Without the
 key the app stays rules-only.
 
+## Web branding and PWA
+
+The web app uses the approved brush seal and `おかね` wordmark. Optimized assets
+and install icons are committed in `web/public`; the original artwork is in
+`web/branding`. To regenerate the exports with ImageMagick 7, run
+`cd web && npm run brand:export`. Android maskable icons have separate safe-area
+padding; the Apple touch icon is an opaque 180px export.
+
+`cd web && npm run build` also creates a versioned service worker. Production
+builds cache the public app shell for offline launch; account and authentication
+API responses are never cached. Updates activate after existing app windows
+close. Offline use shows a connection notice and requires reconnection to load
+or save financial data. The development server does not register a worker.
+
 ## Testing
+
+Run `cd web && npm test` for the connection-status regression tests (Node 24+).
 
 ```sh
 make test        # unit tests

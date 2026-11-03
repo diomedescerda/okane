@@ -196,7 +196,7 @@ export function RulesPage() {
   return (
     <AppLayout>
       <div className="mx-auto max-w-4xl space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="page-header">
           <h1 className="text-2xl font-semibold tracking-tight">Rules</h1>
           {!adding && (
             <button className="btn-primary" onClick={() => setAdding(true)}>
@@ -223,8 +223,8 @@ export function RulesPage() {
             description="Create a rule like “description contains D1 → Groceries” and imported transactions will get categorized on arrival."
           />
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-slate-800">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-2xl border border-slate-800">
+            <table role="table" className="responsive-table text-sm">
               <thead className="bg-slate-900/80 text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-3 font-medium">When</th>
@@ -237,31 +237,28 @@ export function RulesPage() {
               <tbody className="divide-y divide-slate-800/80">
                 {rules.map((rule) => (
                   <tr key={rule.id} className={rule.enabled ? "" : "opacity-50"}>
-                    <td className="px-4 py-3">
+                    <td data-label="When" className="px-4 py-3">
                       <span className="text-slate-500">{FIELD_LABELS[rule.field]}</span>{" "}
                       <span className="text-slate-300">{MATCH_TYPE_LABELS[rule.match_type]}</span>{" "}
                       <span className="font-mono text-slate-100">“{rule.pattern}”</span>
                     </td>
-                    <td className="px-4 py-3">{categoryLabel(rule)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-slate-400">{rule.priority}</td>
-                    <td className="px-4 py-3">
+                    <td data-label="Category" className="px-4 py-3">{categoryLabel(rule)}</td>
+                    <td data-label="Priority" className="px-4 py-3 text-right tabular-nums text-slate-400">{rule.priority}</td>
+                    <td data-label="Enabled" className="px-4 py-3">
                       <button
                         role="switch"
                         aria-checked={rule.enabled}
+                        aria-label={`Rule: ${rule.pattern}`}
                         onClick={() => toggleMutation.mutate(rule)}
                         disabled={toggleMutation.isPending}
-                        className={`relative h-5 w-9 rounded-full transition ${
-                          rule.enabled ? "bg-emerald-500" : "bg-slate-700"
-                        }`}
+                        className="inline-flex size-11 items-center justify-center rounded-lg"
                       >
-                        <span
-                          className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition ${
-                            rule.enabled ? "left-4.5" : "left-0.5"
-                          }`}
-                        />
+                        <span aria-hidden="true" className={`relative h-6 w-10 rounded-full transition ${rule.enabled ? "bg-emerald-500" : "bg-slate-700"}`}>
+                          <span className={`absolute top-1 size-4 rounded-full bg-slate-50 transition-all ${rule.enabled ? "left-5" : "left-1"}`} />
+                        </span>
                       </button>
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-label="Actions" className="px-4 py-3">
                       <div className="flex justify-end gap-1">
                         <span className="self-center text-xs text-slate-500">{formatDate(rule.created_at)}</span>
                         <button

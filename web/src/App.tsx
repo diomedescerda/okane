@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { useAuth } from "./auth/AuthContext";
+import { Brand } from "./components/Brand";
 import { AccountsPage } from "./pages/AccountsPage";
 import { BanksPage } from "./pages/BanksPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -13,7 +14,7 @@ function Protected({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-slate-500">Loading…</div>
+      <div role="status" className="flex min-h-dvh flex-col items-center justify-center gap-6 text-slate-500"><Brand stacked /><span>Loading your accounts…</span></div>
     );
   }
   if (!user) return <Navigate to="/login" replace />;

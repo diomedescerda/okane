@@ -115,7 +115,7 @@ export function TransactionModal({ accounts, categories, transaction, defaultAcc
               key={option.value}
               type="button"
               onClick={() => switchDirection(option.value)}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+              className={`min-h-11 rounded-md px-3 py-1.5 text-sm font-medium transition ${
                 direction === option.value
                   ? option.value === "out"
                     ? "bg-rose-500/20 text-rose-300"
@@ -128,7 +128,7 @@ export function TransactionModal({ accounts, categories, transaction, defaultAcc
           ))}
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="form-grid">
           <label className="block">
             <span className="label">Amount</span>
             <input
@@ -165,7 +165,7 @@ export function TransactionModal({ accounts, categories, transaction, defaultAcc
           />
         </label>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="form-grid">
           <label className="block">
             <span className="label">Account</span>
             <select
@@ -199,7 +199,7 @@ export function TransactionModal({ accounts, categories, transaction, defaultAcc
           </label>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="form-grid">
           <label className="block">
             <span className="label">Merchant (optional)</span>
             <input

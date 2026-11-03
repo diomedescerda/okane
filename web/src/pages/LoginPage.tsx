@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
+import { Brand } from "../components/Brand";
+import { ConnectionStatus } from "../components/ConnectionStatus";
 
 export function LoginPage() {
   const { user, login, register } = useAuth();
@@ -13,6 +15,8 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => { document.title = "おかね · Okane"; }, []);
 
   if (user) return <Navigate to="/" replace />;
 
@@ -35,18 +39,18 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
+    <div className="flex min-h-dvh items-center justify-center px-[max(1rem,env(safe-area-inset-left),env(safe-area-inset-right))] py-[max(2rem,env(safe-area-inset-top),env(safe-area-inset-bottom))]">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="text-3xl font-semibold tracking-tight">
-            okane<span className="text-emerald-400">.</span>
-          </div>
-          <p className="mt-2 text-sm text-slate-400">
+          <Brand stacked />
+          <p className="mt-4 text-sm text-slate-400">Your money, a little clearer.</p>
+          <h1 className="mt-6 text-xl font-medium">
             {mode === "login" ? "Sign in to your accounts" : "Create your account"}
-          </p>
+          </h1>
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
+        <ConnectionStatus />
+        <form onSubmit={onSubmit} className="space-y-4 rounded-3xl border border-slate-800 bg-slate-900/60 p-5 sm:p-6">
           {mode === "register" && (
             <Field label="Name">
               <input
@@ -83,7 +87,7 @@ export function LoginPage() {
           </Field>
 
           {error && (
-            <p className="rounded-lg border border-rose-900/60 bg-rose-950/40 px-3 py-2 text-sm text-rose-300">
+            <p role="alert" className="rounded-lg border border-rose-900/60 bg-rose-950/40 px-3 py-2 text-sm text-rose-300">
               {error}
             </p>
           )}
@@ -94,7 +98,7 @@ export function LoginPage() {
 
           <button
             type="button"
-            className="w-full text-center text-sm text-slate-400 hover:text-slate-200"
+            className="min-h-11 w-full text-center text-sm text-slate-400 hover:text-slate-200"
             onClick={() => {
               setMode(mode === "login" ? "register" : "login");
               setError("");

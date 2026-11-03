@@ -91,7 +91,7 @@ export function TransactionsPage() {
   return (
     <AppLayout>
       <div className="mx-auto max-w-6xl space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="page-header">
           <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
           {accounts.length > 0 ? (
             <button className="btn-primary" onClick={() => setModal({})}>
@@ -104,8 +104,8 @@ export function TransactionsPage() {
           )}
         </div>
 
-        <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-          <label className="block min-w-52 flex-1">
+        <div className="grid grid-cols-2 items-end gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 xl:grid-cols-4">
+          <label className="col-span-2 block min-w-0">
             <span className="label">Search</span>
             <input
               className="input"
@@ -114,7 +114,7 @@ export function TransactionsPage() {
               placeholder="Description or merchant"
             />
           </label>
-          <label className="block">
+          <label className="col-span-2 block min-w-0 sm:col-span-1">
             <span className="label">Account</span>
             <select className="input" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
               <option value="">All accounts</option>
@@ -125,7 +125,7 @@ export function TransactionsPage() {
               ))}
             </select>
           </label>
-          <label className="block">
+          <label className="block min-w-0">
             <span className="label">Type</span>
             <select
               className="input"
@@ -144,7 +144,7 @@ export function TransactionsPage() {
           >
             Uncategorized
           </button>
-          <label className="block">
+          <label className="block min-w-0">
             <span className="label">Month</span>
             <input
               type="month"
@@ -176,7 +176,7 @@ export function TransactionsPage() {
           <>
             <div className="overflow-hidden rounded-2xl border border-slate-800">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table role="table" className="responsive-table transaction-table text-sm">
                   <thead className="bg-slate-900/80 text-left text-xs uppercase tracking-wide text-slate-500">
                     <tr>
                       <th className="px-4 py-3 font-medium">Date</th>
@@ -190,18 +190,18 @@ export function TransactionsPage() {
                   <tbody className="divide-y divide-slate-800/80">
                     {transactions.map((transaction) => (
                       <tr key={transaction.id}>
-                        <td className="whitespace-nowrap px-4 py-3 text-slate-400">
+                        <td data-label="Date" className="whitespace-nowrap px-4 py-3 text-slate-400">
                           {formatDate(transaction.occurred_at)}
                         </td>
-                        <td className="px-4 py-3">
+                        <td data-label="Description" className="px-4 py-3">
                           <div className="font-medium">{transaction.description}</div>
                           {transaction.merchant && (
                             <div className="text-xs text-slate-500">{transaction.merchant}</div>
                           )}
                         </td>
-                        <td className="px-4 py-3">
+                        <td data-label="Category" className="px-4 py-3">
                           {transaction.category_name ? (
-                            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-800 bg-slate-900 px-2 py-0.5 text-xs">
+                            <span className="inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900 px-2 py-1 text-xs">
                               <span
                                 className="h-2 w-2 rounded-full"
                                 style={{ backgroundColor: transaction.category_color ?? "#64748b" }}
@@ -228,15 +228,16 @@ export function TransactionsPage() {
                             <span className="text-xs text-slate-500">Uncategorized</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-slate-400">{transaction.account_name}</td>
+                        <td data-label="Account" className="px-4 py-3 text-slate-400">{transaction.account_name}</td>
                         <td
+                          data-label="Amount"
                           className={`whitespace-nowrap px-4 py-3 text-right tabular-nums ${
                             transaction.direction === "in" ? "text-emerald-400" : "text-rose-400"
                           }`}
                         >
                           {formatSigned(transaction.amount, transaction.currency)}
                         </td>
-                        <td className="px-4 py-3">
+                        <td data-label="Actions" className="px-4 py-3">
                           <div className="flex justify-end gap-1">
                             <button className="btn-ghost" onClick={() => setModal({ transaction })}>
                               Edit
@@ -257,7 +258,7 @@ export function TransactionsPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-sm text-slate-400">
+            <div className="flex flex-wrap items-center justify-between gap-4 text-sm text-slate-400">
               <span>
                 {total} transaction{total === 1 ? "" : "s"} · page {page} of {pages}
               </span>

@@ -87,7 +87,7 @@ export function AccountModal({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="form-grid">
           <div>
             <label className="label" htmlFor="account-type">
               Type

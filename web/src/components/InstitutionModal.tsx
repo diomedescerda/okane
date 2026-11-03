@@ -72,7 +72,7 @@ export function InstitutionModal({ onClose }: InstitutionModalProps) {
           />
         </label>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="form-grid">
           <label className="block">
             <span className="label">Type</span>
             <select className="input" value={type} onChange={(event) => setType(event.target.value as InstitutionType)}>
@@ -95,7 +95,7 @@ export function InstitutionModal({ onClose }: InstitutionModalProps) {
           </label>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="form-grid">
           <label className="block">
             <span className="label">Brand color</span>
             <div className="flex items-center gap-2">
@@ -103,7 +103,8 @@ export function InstitutionModal({ onClose }: InstitutionModalProps) {
                 type="color"
                 value={primaryColor}
                 onChange={(event) => setPrimaryColor(event.target.value)}
-                className="h-9 w-12 cursor-pointer rounded border border-slate-700 bg-slate-900"
+                aria-label="Brand color picker"
+                className="h-11 w-12 shrink-0 cursor-pointer rounded border border-slate-700 bg-slate-900"
               />
               <input
                 className="input"

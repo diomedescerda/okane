@@ -1,21 +1,36 @@
-import type { ReactNode } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { useEffect, type ReactNode } from "react";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
+import { Brand } from "./Brand";
+import { NavIcon } from "./NavIcon";
+import { ConnectionStatus } from "./ConnectionStatus";
 
 const NAV = [
-  { to: "/", label: "Overview", enabled: true },
-  { to: "/transactions", label: "Transactions", enabled: true },
-  { to: "/accounts", label: "Accounts", enabled: true },
-  { to: "/banks", label: "Banks", enabled: true },
-  { to: "/rules", label: "Rules", enabled: true },
-  { to: "/budgets", label: "Budgets", enabled: false },
-  { to: "/insights", label: "Insights", enabled: false },
-];
+  { to: "/", label: "Overview", mobileLabel: "Overview", icon: "overview" },
+  {
+    to: "/transactions",
+    label: "Transactions",
+    mobileLabel: "Activity",
+    icon: "transactions",
+  },
+  {
+    to: "/accounts",
+    label: "Accounts",
+    mobileLabel: "Accounts",
+    icon: "accounts",
+  },
+  { to: "/banks", label: "Banks", mobileLabel: "Banks", icon: "banks" },
+  { to: "/rules", label: "Rules", mobileLabel: "Rules", icon: "rules" },
+] as const;
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  useEffect(() => {
+    document.title = `${NAV.find((item) => item.to === pathname)?.label ?? "Okane"} · おかね`;
+  }, [pathname]);
 
   async function onLogout() {
     await logout();
@@ -23,68 +38,106 @@ export function AppLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="hidden w-56 shrink-0 border-r border-slate-800 p-4 md:block">
-        <div className="px-2 pb-6 pt-1 text-xl font-semibold tracking-tight">
-          okane<span className="text-emerald-400">.</span>
+    <div className="app-shell flex">
+      <a
+        href="#main-content"
+        className="sr-only z-50 rounded-lg bg-emerald-400 p-3 text-slate-950 focus:not-sr-only focus:absolute focus:left-4 focus:top-4"
+      >
+        Skip to content
+      </a>
+      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-slate-800 bg-slate-900/35 px-4 pb-6 pt-[max(2rem,env(safe-area-inset-top))] lg:flex">
+        <Link
+          to="/"
+          aria-label="Okane overview"
+          className="mb-10 self-start px-2"
+        >
+          <Brand />
+        </Link>
+        <div className="mb-3 px-3 text-[10px] font-medium uppercase tracking-[0.2em] text-slate-500">
+          Your finances
         </div>
-        <nav className="space-y-1">
+        <nav aria-label="Main navigation" className="space-y-1.5">
           {NAV.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
+              end={item.to === "/"}
               className={({ isActive }) =>
-                `flex items-center justify-between rounded-lg px-3 py-2 text-sm ${
-                  item.enabled
-                    ? isActive
-                      ? "bg-slate-800 text-white"
-                      : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
-                    : "pointer-events-none text-slate-600"
-                }`
+                `flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm transition ${isActive ? "bg-emerald-400/10 font-medium text-emerald-300" : "text-slate-400 hover:bg-slate-800/70 hover:text-slate-100"}`
               }
             >
+              <NavIcon name={item.icon} />
               {item.label}
-              {!item.enabled && (
-                <span className="rounded bg-slate-900 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-slate-600">
-                  soon
-                </span>
-              )}
             </NavLink>
           ))}
         </nav>
+        <div className="mt-auto px-3 pt-8">
+          <span
+            className="brand-mark mb-3 size-7 text-emerald-400/40"
+            aria-hidden="true"
+          />
+          <p className="text-xs leading-relaxed text-slate-500">
+            A little clarity.
+            <br />A little more peace of mind.
+          </p>
+        </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-slate-800 px-6 py-3">
-          <div className="text-sm text-slate-400">
-            {user?.name ? `Welcome back, ${user.name}` : "Welcome back"}
+        <header className="app-header sticky top-0 z-20 flex min-h-19 items-center justify-between gap-3 border-b border-slate-800 bg-slate-950/95 px-4 pb-3 backdrop-blur-md sm:px-6 lg:px-8">
+          <Link
+            to="/"
+            aria-label="Okane overview"
+            className="shrink-0 lg:hidden"
+          >
+            <Brand />
+          </Link>
+          <div className="hidden min-w-0 text-sm text-slate-400 sm:block">
+            <span className="block text-[10px] uppercase tracking-[0.18em] text-slate-500">
+              A clearer view
+            </span>
+            <span className="block truncate">
+              {user?.name ? `Welcome back, ${user.name}` : "Welcome back"}
+            </span>
           </div>
-          <button onClick={onLogout} className="text-sm text-slate-400 hover:text-slate-200">
-            Sign out
+          <button
+            onClick={onLogout}
+            className="btn-ghost ml-auto shrink-0 gap-2"
+            aria-label="Sign out"
+          >
+            <NavIcon name="logout" />
+            <span className="hidden sm:inline">Sign out</span>
           </button>
         </header>
-        <main className="flex-1 p-6 pb-24 md:pb-6">{children}</main>
+        <ConnectionStatus />
+        <main
+          id="main-content"
+          className="app-main min-w-0 flex-1 px-4 pt-6 sm:px-6 sm:pt-8 lg:px-8"
+        >
+          {children}
+        </main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-10 flex border-t border-slate-800 bg-slate-950/95 pb-[env(safe-area-inset-bottom)] md:hidden">
-        {NAV.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              `flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${
-                item.enabled
-                  ? isActive
-                    ? "text-white"
-                    : "text-slate-400"
-                  : "pointer-events-none text-slate-600"
-              }`
-            }
-          >
-            <span>{item.label}</span>
-            {!item.enabled && <span className="text-[9px] uppercase text-slate-600">soon</span>}
-          </NavLink>
-        ))}
+      <nav
+        aria-label="Mobile navigation"
+        className="mobile-nav fixed inset-x-0 bottom-0 z-30 border-t border-slate-700 bg-slate-950/95 backdrop-blur-md lg:hidden"
+      >
+        <div className="mx-auto grid max-w-xl grid-cols-5 gap-1">
+          {NAV.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === "/"}
+              aria-label={item.label}
+              className={({ isActive }) =>
+                `flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium transition ${isActive ? "bg-emerald-400/10 text-emerald-300" : "text-slate-400 hover:bg-slate-900"}`
+              }
+            >
+              <NavIcon name={item.icon} />
+              <span>{item.mobileLabel}</span>
+            </NavLink>
+          ))}
+        </div>
       </nav>
     </div>
   );

@@ -108,8 +108,8 @@ export function ImportModal({ account, onClose }: { account: Account; onClose: (
               {preview.skipped > 0 && <span>{preview.skipped} rows skipped</span>}
             </div>
 
-            <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-800">
-              <table className="w-full text-sm">
+            <div className="max-h-72 overflow-auto rounded-lg border border-slate-800" role="region" aria-label="Statement preview" tabIndex={0}>
+              <table className="w-full min-w-[32rem] text-sm">
                 <thead className="sticky top-0 bg-slate-900 text-left text-xs uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-3 py-2">Date</th>

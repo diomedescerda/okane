@@ -193,6 +193,7 @@ type Manager struct {
 	poll        time.Duration
 	timeout     time.Duration
 	workerID    string
+	kick        chan struct{}
 }
 
 // NewManager wires a job manager. Handlers must be registered before Run; a
@@ -217,6 +218,18 @@ func NewManager(store *Store, cfg Config, handlers map[string]Handler) *Manager 
 		poll:        cfg.Poll,
 		timeout:     cfg.JobTimeout,
 		workerID:    workerID(),
+		kick:        make(chan struct{}, 1),
+	}
+}
+
+// Kick wakes an idle worker immediately instead of waiting for the next poll
+// tick. Call it right after Enqueue so fresh jobs run without delay even when
+// the poll interval is long (e.g. behind a serverless database that charges
+// per active query time). It never blocks and is safe for concurrent use.
+func (m *Manager) Kick() {
+	select {
+	case m.kick <- struct{}{}:
+	default:
 	}
 }
 
@@ -245,6 +258,7 @@ func (m *Manager) Run(ctx context.Context, log *slog.Logger) error {
 					select {
 					case <-ctx.Done():
 						return
+					case <-m.kick:
 					case <-time.After(m.poll):
 					}
 				}

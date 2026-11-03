@@ -104,14 +104,14 @@ func serve(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool, log *slo
 	authSvc := auth.NewService(pool, cfg.SessionTTL)
 	financeSvc := finance.NewService(finance.NewStore(pool), loc)
 	jobStore := jobs.NewStore(pool)
-	wireAI(cfg, financeSvc, jobStore)
+	manager := jobs.NewManager(jobStore, jobs.Config{Poll: cfg.JobsPoll}, map[string]jobs.Handler{
+		finance.JobReclassify: reclassifyHandler(financeSvc),
+	})
+	wireAI(cfg, financeSvc, jobStore, manager)
 	handler := httpapi.NewRouter(cfg, pool, authSvc, financeSvc, log)
 
 	// The background worker blocks on ctx, so shutdown stops it before the
 	// server drain; draining jobs are re-claimed after the lease expires.
-	manager := jobs.NewManager(jobStore, jobs.Config{}, map[string]jobs.Handler{
-		finance.JobReclassify: reclassifyHandler(financeSvc),
-	})
 	go manager.Run(ctx, log)
 
 	srv := &http.Server{
@@ -159,8 +159,10 @@ func newLogger(cfg *config.Config) *slog.Logger {
 }
 
 // wireAI connects the AI model client and the import-time background hook when
-// an API key is configured; without one the app behaves rules-only.
-func wireAI(cfg *config.Config, financeSvc *finance.Service, jobStore *jobs.Store) {
+// an API key is configured; without one the app behaves rules-only. Enqueued
+// reclassification jobs are kicked immediately so fresh imports do not wait
+// for the queue poll tick.
+func wireAI(cfg *config.Config, financeSvc *finance.Service, jobStore *jobs.Store, manager *jobs.Manager) {
 	if cfg.AIAPIKey == "" {
 		return
 	}
@@ -177,6 +179,7 @@ func wireAI(cfg *config.Config, financeSvc *finance.Service, jobStore *jobs.Stor
 		if err != nil {
 			return 0, err
 		}
+		manager.Kick()
 		return job.ID, nil
 	})
 }

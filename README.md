@@ -139,8 +139,15 @@ make db-up       # then, for the database integration test:
 OKANE_DATABASE_URL="postgres://okane:okane@localhost:5432/okane?sslmode=disable" go test ./...
 ```
 
-## Deployment (VPS)
+## Deployment
 
+Two supported paths, both free-capable:
+
+- **Managed (Render + Neon)**: single container with the web front end
+  embedded — see [deploy/README.md](deploy/README.md) for the step-by-step
+  runbook. Best for running the app without a server of your own.
+- **VPS (Docker Compose + Caddy)**: full self-hosted stack with automatic TLS
+  and nightly Postgres backups —
 1. Point a DNS `A` record at the VPS.
 2. Copy `deploy/.env.example` to `deploy/.env` and fill it in.
 3. On the VPS:

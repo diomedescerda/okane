@@ -33,6 +33,10 @@ xcuserdata/
 .vscode/
 *.swp
 
+# Embedded front-end build output (deploy copies web/dist here at build time)
+internal/webui/dist/*
+!internal/webui/dist/placeholder.txt
+
 # Data
 /data/
 deploy/backups/

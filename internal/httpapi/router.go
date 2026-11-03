@@ -11,6 +11,7 @@ import (
 	"github.com/kenma/okane/internal/auth"
 	"github.com/kenma/okane/internal/config"
 	"github.com/kenma/okane/internal/finance"
+	"github.com/kenma/okane/internal/webui"
 )
 
 // NewRouter builds the application HTTP handler.
@@ -97,6 +98,12 @@ func NewRouter(cfg *config.Config, pool *pgxpool.Pool, authSvc *auth.Service, fi
 			r.Get("/summary/months", fh.MonthlyTotals)
 		})
 	})
+
+	// When the API binary embeds the built front end it serves both on the
+	// same origin, so cookies and CSRF work without extra configuration.
+	if webui.Available() {
+		r.Handle("/*", webui.Handler())
+	}
 
 	return r
 }

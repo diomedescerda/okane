@@ -22,6 +22,11 @@ type Config struct {
 	SessionTTL          time.Duration
 	SessionCookieSecure bool
 
+	// JobsPoll is the idle interval between queue polls. Long intervals keep
+	// serverless databases (Neon free tier) asleep between checks; fresh work
+	// is run immediately via Manager.Kick regardless.
+	JobsPoll time.Duration
+
 	// Timezone groups reports and month boundaries for the user.
 	Timezone string
 
@@ -60,6 +65,7 @@ func Load() (*Config, error) {
 
 		SessionTTL:          envDuration("OKANE_SESSION_TTL", 30*24*time.Hour),
 		SessionCookieSecure: envBool("OKANE_SESSION_COOKIE_SECURE", false),
+		JobsPoll:            envDuration("OKANE_JOBS_POLL", time.Second),
 
 		Timezone: env("OKANE_TIMEZONE", "America/Bogota"),
 
@@ -78,9 +84,18 @@ func Load() (*Config, error) {
 	if cfg.IsDev() {
 		// Development without TLS: cookies must not be marked Secure.
 		cfg.SessionCookieSecure = envBool("OKANE_SESSION_COOKIE_SECURE", false)
+	} else if !envSet("OKANE_SESSION_COOKIE_SECURE") {
+		// Production is served over HTTPS: default the session cookie to
+		// Secure unless explicitly disabled.
+		cfg.SessionCookieSecure = true
 	}
 
 	return cfg, nil
+}
+
+func envSet(key string) bool {
+	v, ok := os.LookupEnv(key)
+	return ok && v != ""
 }
 
 func env(key, fallback string) string {

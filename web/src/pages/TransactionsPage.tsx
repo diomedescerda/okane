@@ -94,7 +94,7 @@ export function TransactionsPage() {
 
   return (
     <AppLayout>
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6 animate-fade-up">
         <div className="page-header">
           <h1 className="text-2xl font-semibold tracking-tight">{t("nav.transactions")}</h1>
           {accounts.length > 0 ? (
@@ -108,8 +108,8 @@ export function TransactionsPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-2 items-end gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 xl:grid-cols-4">
-          <label className="col-span-2 block min-w-0">
+        <div className="surface-card grid grid-cols-1 items-end gap-3 rounded-2xl p-4 sm:grid-cols-2 xl:grid-cols-4">
+          <label className="block min-w-0 sm:col-span-2">
             <span className="label">{t("transactions.searchLabel")}</span>
             <input
               className="input"
@@ -118,7 +118,7 @@ export function TransactionsPage() {
               placeholder={t("transactions.searchPlaceholder")}
             />
           </label>
-          <label className="col-span-2 block min-w-0 sm:col-span-1">
+          <label className="block min-w-0">
             <span className="label">{t("transactions.accountLabel")}</span>
             <select
               className="input"
@@ -145,13 +145,6 @@ export function TransactionsPage() {
               <option value="in">{t("transactions.filterIncome")}</option>
             </select>
           </label>
-          <button
-            className={`btn-secondary ${uncategorized ? "border-emerald-500/60 text-emerald-300" : ""}`}
-            aria-pressed={uncategorized}
-            onClick={() => setUncategorized((value) => !value)}
-          >
-            {t("transactions.filterUncategorized")}
-          </button>
           <label className="block min-w-0">
             <span className="label">{t("transactions.monthLabel")}</span>
             <input
@@ -161,9 +154,18 @@ export function TransactionsPage() {
               onChange={(event) => setMonth(event.target.value)}
             />
           </label>
-          <button className="btn-secondary" onClick={resetFilters}>
-            {t("transactions.reset")}
-          </button>
+          <div className="grid grid-cols-2 gap-2.5 sm:col-span-1 xl:col-span-2">
+            <button
+              className={`btn-secondary truncate ${uncategorized ? "border-emerald-500/60 text-emerald-300" : ""}`}
+              aria-pressed={uncategorized}
+              onClick={() => setUncategorized((value) => !value)}
+            >
+              {t("transactions.filterUncategorized")}
+            </button>
+            <button className="btn-secondary truncate" onClick={resetFilters}>
+              {t("transactions.reset")}
+            </button>
+          </div>
         </div>
 
         {error && <ErrorMessage message={error} />}
@@ -182,7 +184,7 @@ export function TransactionsPage() {
           />
         ) : (
           <>
-            <div className="overflow-hidden rounded-2xl border border-slate-800">
+            <div className="surface-card overflow-hidden rounded-2xl">
               <div className="overflow-x-auto">
                 <table role="table" className="responsive-table transaction-table text-sm">
                   <thead className="bg-slate-900/80 text-left text-xs uppercase tracking-wide text-slate-500">

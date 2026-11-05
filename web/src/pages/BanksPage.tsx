@@ -75,7 +75,7 @@ export function BanksPage() {
 
   return (
     <AppLayout>
-      <div className="mx-auto max-w-5xl space-y-8">
+      <div className="mx-auto max-w-5xl space-y-8 animate-fade-up">
         <div className="page-header">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">{t("nav.banks")}</h1>
@@ -101,11 +101,11 @@ export function BanksPage() {
               description={t("banks.emptyDescription")}
             />
           ) : (
-            <ul className="divide-y divide-slate-800/80 overflow-hidden rounded-2xl border border-slate-800">
+            <ul className="surface-card divide-y divide-slate-800/80 overflow-hidden rounded-2xl">
               {links.map((link) => (
                 <li
                   key={link.id}
-                  className="flex flex-wrap items-center gap-3 bg-slate-900/40 px-4 py-4"
+                  className="flex flex-wrap items-center gap-3 px-4 py-4"
                 >
                   <InstitutionIcon
                     name={link.institution_name}
@@ -124,22 +124,24 @@ export function BanksPage() {
                           : t("banks.accountsAttached.other", { count: link.account_count })}
                     </div>
                   </div>
-                  <button
-                    className="btn-ghost"
-                    onClick={() => setAccountModal({ linkId: link.id })}
-                  >
-                    {t("banks.addAccountButton")}
-                  </button>
-                  <Link to="/accounts" className="btn-ghost">
-                    {t("nav.accounts")}
-                  </Link>
-                  <button
-                    className="btn-ghost text-rose-400 hover:text-rose-300"
-                    onClick={() => onDetach(link.id, link.institution_name)}
-                    disabled={detachMutation.isPending}
-                  >
-                    {t("banks.detach")}
-                  </button>
+                  <div className="flex w-full flex-wrap items-center justify-end gap-1 border-t border-slate-800/70 pt-2.5 md:w-auto md:border-t-0 md:pt-0">
+                    <button
+                      className="btn-ghost"
+                      onClick={() => setAccountModal({ linkId: link.id })}
+                    >
+                      {t("banks.addAccountButton")}
+                    </button>
+                    <Link to="/accounts" className="btn-ghost">
+                      {t("nav.accounts")}
+                    </Link>
+                    <button
+                      className="btn-ghost text-rose-400 hover:text-rose-300"
+                      onClick={() => onDetach(link.id, link.institution_name)}
+                      disabled={detachMutation.isPending}
+                    >
+                      {t("banks.detach")}
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -184,7 +186,7 @@ export function BanksPage() {
                 return (
                   <div
                     key={institution.id}
-                    className="flex min-w-0 flex-wrap items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/40 p-4"
+                    className="surface-card flex min-w-0 flex-wrap items-center gap-3 rounded-2xl p-4"
                   >
                     <InstitutionIcon
                       name={institution.display_name}

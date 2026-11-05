@@ -43,6 +43,32 @@
 body {
   @apply m-0 bg-slate-950 text-slate-100 antialiased;
   min-width: 320px;
+  overflow-x: hidden;
+  background-color: var(--color-slate-950);
+  background-image:
+    radial-gradient(ellipse 80% 55% at 12% -10%, rgba(117, 163, 97, 0.16), transparent 65%),
+    radial-gradient(ellipse 65% 50% at 92% 8%, rgba(74, 117, 64, 0.12), transparent 60%),
+    radial-gradient(ellipse 70% 55% at 50% 105%, rgba(248, 243, 231, 0.05), transparent 65%),
+    linear-gradient(180deg, rgba(12, 24, 18, 0.92) 0%, rgba(10, 20, 15, 0.98) 100%);
+  background-attachment: fixed;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(to right, rgba(175, 211, 155, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(175, 211, 155, 0.035) 1px, transparent 1px);
+  background-size: 3.25rem 3.25rem;
+  mask-image: radial-gradient(ellipse 85% 75% at 50% 25%, #000 30%, transparent 85%);
+}
+
+#root {
+  position: relative;
+  z-index: 1;
 }
 
 button,
@@ -75,24 +101,102 @@ a {
   }
 }
 
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bar-grow-y {
+  from {
+    transform: scaleY(0.04);
+    opacity: 0.4;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes bar-grow-x {
+  from {
+    transform: scaleX(0.02);
+    opacity: 0.4;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
 @layer components {
+  .surface-card {
+    background: linear-gradient(
+      165deg,
+      rgba(24, 44, 33, 0.72) 0%,
+      rgba(15, 29, 22, 0.78) 100%
+    );
+    border: 1px solid rgba(64, 87, 71, 0.55);
+    box-shadow:
+      inset 0 1px 0 0 rgba(250, 249, 242, 0.055),
+      0 12px 32px -12px rgba(4, 10, 7, 0.65);
+    backdrop-filter: blur(12px);
+    transition:
+      border-color 220ms ease,
+      box-shadow 220ms ease,
+      transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .surface-card:hover {
+    border-color: rgba(117, 163, 97, 0.42);
+    box-shadow:
+      inset 0 1px 0 0 rgba(250, 249, 242, 0.08),
+      0 18px 40px -14px rgba(4, 10, 7, 0.8);
+  }
+  .animate-fade-up {
+    animation: fade-up 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .animate-bar-y {
+    transform-origin: bottom;
+    animation: bar-grow-y 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .animate-bar-x {
+    transform-origin: left;
+    animation: bar-grow-x 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .stagger-1 {
+    animation-delay: 50ms;
+  }
+  .stagger-2 {
+    animation-delay: 100ms;
+  }
+  .stagger-3 {
+    animation-delay: 150ms;
+  }
+  .stagger-4 {
+    animation-delay: 200ms;
+  }
   .input {
-    @apply min-h-11 min-w-0 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-base text-slate-100 placeholder:text-slate-600 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 sm:text-sm;
+    @apply min-h-11 min-w-0 w-full rounded-xl border border-slate-700/80 bg-slate-950/90 px-3 py-2 text-base text-slate-100 placeholder:text-slate-600 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 sm:text-sm;
   }
   .label {
-    @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500;
+    @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-400;
   }
   .btn-primary {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-semibold text-slate-950 shadow-sm shadow-emerald-950/50 transition hover:bg-emerald-300 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60;
   }
   .btn-secondary {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900/85 px-3.5 py-2.5 text-sm font-medium text-slate-200 transition hover:border-slate-600 hover:bg-slate-800/90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-ghost {
-    @apply inline-flex min-h-11 items-center justify-center rounded-lg px-3 py-2 text-sm font-medium text-slate-400 transition hover:bg-slate-800 hover:text-slate-200 disabled:opacity-50;
+    @apply inline-flex min-h-10 items-center justify-center rounded-lg px-3 py-2 text-sm font-medium text-slate-400 transition hover:bg-slate-800/80 hover:text-slate-100 disabled:opacity-50;
   }
   .page-header {
-    @apply flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center;
+    @apply flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center;
   }
   .form-grid {
     @apply grid grid-cols-1 gap-4 sm:grid-cols-2;
@@ -191,7 +295,7 @@ a {
   .responsive-table tr {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1rem;
+    gap: 0.85rem 1rem;
     padding: 1rem;
   }
   .responsive-table td {
@@ -204,9 +308,9 @@ a {
   .responsive-table td::before {
     content: attr(data-label);
     display: block;
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.3rem;
     color: var(--color-slate-500);
-    font-size: 0.7rem;
+    font-size: 0.68rem;
     font-weight: 500;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -216,6 +320,10 @@ a {
   .responsive-table td[data-col="description"],
   .responsive-table td[data-label="Description"] {
     grid-column: 1 / -1;
+  }
+  .responsive-table td:last-child {
+    border-top: 1px solid rgba(41, 60, 48, 0.65);
+    padding-top: 0.65rem;
   }
   .responsive-table td:last-child::before {
     display: none;
@@ -229,8 +337,24 @@ a {
   .responsive-table td[data-col="balance"],
   .responsive-table td[data-label="Amount"],
   .responsive-table td[data-label="Balance"] {
-    font-size: 1rem;
+    font-size: 1.05rem;
     font-weight: 600;
+  }
+  .responsive-table td[data-col="account"] {
+    order: 0;
+  }
+  .responsive-table td[data-col="balance"] {
+    grid-column: 1 / -1;
+    order: 1;
+  }
+  .responsive-table td[data-col="type"] {
+    order: 2;
+  }
+  .responsive-table td[data-col="transactions"] {
+    order: 3;
+  }
+  .responsive-table td[data-col="actions"] {
+    order: 5;
   }
   .transaction-table td[data-col="description"],
   .transaction-table td[data-label="Description"] {

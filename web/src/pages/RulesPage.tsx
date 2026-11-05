@@ -213,7 +213,7 @@ export function RulesPage() {
 
   return (
     <AppLayout>
-      <div className="mx-auto max-w-4xl space-y-6">
+      <div className="mx-auto max-w-4xl space-y-6 animate-fade-up">
         <div className="page-header">
           <h1 className="text-2xl font-semibold tracking-tight">{t("nav.rules")}</h1>
           {!adding && (
@@ -238,7 +238,7 @@ export function RulesPage() {
             description={t("rules.emptyDescription")}
           />
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-slate-800">
+          <div className="surface-card overflow-x-auto rounded-2xl">
             <table role="table" className="responsive-table text-sm">
               <thead className="bg-slate-900/80 text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>

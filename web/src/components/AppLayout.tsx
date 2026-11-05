@@ -57,7 +57,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       >
         {t("layout.skipToContent")}
       </a>
-      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-slate-800 bg-slate-900/35 px-4 pb-6 pt-[max(2rem,env(safe-area-inset-top))] lg:flex">
+      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-slate-800/80 bg-slate-950/65 px-4 pb-6 pt-[max(2rem,env(safe-area-inset-top))] backdrop-blur-xl lg:flex">
         <Link
           to="/"
           aria-label={t("layout.okaneOverview")}
@@ -75,7 +75,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               to={item.to}
               end={item.to === "/"}
               className={({ isActive }) =>
-                `flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm transition ${isActive ? "bg-emerald-400/10 font-medium text-emerald-300" : "text-slate-400 hover:bg-slate-800/70 hover:text-slate-100"}`
+                `flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm transition ${isActive ? "border border-emerald-500/25 bg-emerald-400/12 font-medium text-emerald-300 shadow-xs shadow-black/20" : "border border-transparent text-slate-400 hover:bg-slate-800/60 hover:text-slate-100"}`
               }
             >
               <NavIcon name={item.icon} />
@@ -97,7 +97,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="app-header sticky top-0 z-20 flex min-h-19 items-center justify-between gap-3 border-b border-slate-800 bg-slate-950/95 px-4 pb-3 backdrop-blur-md sm:px-6 lg:px-8">
+        <header className="app-header sticky top-0 z-20 flex min-h-18 items-center justify-between gap-2 border-b border-slate-800/80 bg-slate-950/85 px-3.5 pb-3 backdrop-blur-xl sm:gap-3 sm:px-6 lg:px-8">
           <Link
             to="/"
             aria-label={t("layout.okaneOverview")}
@@ -115,11 +115,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 : t("layout.welcomeBack")}
             </span>
           </div>
-          <div className="ml-auto flex shrink-0 items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
             <LanguageSwitcher />
             <button
               onClick={onLogout}
-              className="btn-ghost shrink-0 gap-2"
+              className="btn-ghost shrink-0 gap-2 px-2.5 sm:px-3"
               aria-label={t("layout.signOut")}
             >
               <NavIcon name="logout" />
@@ -130,7 +130,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <ConnectionStatus />
         <main
           id="main-content"
-          className="app-main min-w-0 flex-1 px-4 pt-6 sm:px-6 sm:pt-8 lg:px-8"
+          className="app-main min-w-0 flex-1 px-3.5 pt-5 sm:px-6 sm:pt-8 lg:px-8"
         >
           {children}
         </main>
@@ -138,9 +138,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
       <nav
         aria-label={t("layout.mobileNavigation")}
-        className="mobile-nav fixed inset-x-0 bottom-0 z-30 border-t border-slate-700 bg-slate-950/95 backdrop-blur-md lg:hidden"
+        className="mobile-nav fixed inset-x-0 bottom-0 z-30 border-t border-slate-800/90 bg-slate-950/90 backdrop-blur-xl lg:hidden"
       >
-        <div className="mx-auto grid max-w-xl grid-cols-5 gap-1">
+        <div className="mx-auto grid max-w-xl grid-cols-5 gap-0.5 sm:gap-1">
           {NAV.map((item) => (
             <NavLink
               key={item.to}
@@ -148,11 +148,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
               end={item.to === "/"}
               aria-label={t(item.labelKey)}
               className={({ isActive }) =>
-                `flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium transition ${isActive ? "bg-emerald-400/10 text-emerald-300" : "text-slate-400 hover:bg-slate-900"}`
+                `flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium leading-tight transition sm:text-[11px] ${isActive ? "bg-emerald-400/12 text-emerald-300" : "text-slate-400 hover:bg-slate-900"}`
               }
             >
               <NavIcon name={item.icon} />
-              <span>{t(item.mobileLabelKey)}</span>
+              <span className="max-w-full truncate">{t(item.mobileLabelKey)}</span>
             </NavLink>
           ))}
         </div>

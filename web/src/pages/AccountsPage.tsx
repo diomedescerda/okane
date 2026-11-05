@@ -53,7 +53,7 @@ export function AccountsPage() {
 
   return (
     <AppLayout>
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="mx-auto max-w-5xl space-y-6 animate-fade-up">
         <div className="page-header">
           <h1 className="text-2xl font-semibold tracking-tight">{t("nav.accounts")}</h1>
           <button className="btn-primary" onClick={() => setModal({})}>
@@ -76,7 +76,7 @@ export function AccountsPage() {
             </button>
           </EmptyState>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-slate-800">
+          <div className="surface-card overflow-x-auto rounded-2xl">
             <table role="table" className="responsive-table text-sm">
               <thead className="bg-slate-900/80 text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>

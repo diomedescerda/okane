@@ -75,12 +75,61 @@ export function formatMonth(month: string, lang?: Language): string {
   }).format(new Date(year, m - 1, 1));
 }
 
+/** Formats "2026-10" as a single-line short month label for chart axes ("Oct", "oct", "10月"). */
+export function formatMonthShort(month: string, lang?: Language): string {
+  const [year, m] = month.split("-").map(Number);
+  if (!year || !m) return month;
+  return new Intl.DateTimeFormat(resolveLocale(lang), {
+    month: "short",
+  })
+    .format(new Date(year, m - 1, 1))
+    .replace(/\.$/, "");
+}
+
+/** Formats "2026-10" as a localized long month + year ("October 2026", "2026年10月"). */
+export function formatMonthLong(month: string, lang?: Language): string {
+  const [year, m] = month.split("-").map(Number);
+  if (!year || !m) return month;
+  return new Intl.DateTimeFormat(resolveLocale(lang), {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(year, m - 1, 1));
+}
+
+/** Formats a currency value in compact notation for chart axes and badges. */
+export function formatCompactMoney(
+  value: string | number,
+  currency = "COP",
+  lang?: Language,
+): string {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return "—";
+  if (Math.abs(n) < 1000) return formatMoney(n, currency, lang);
+  return new Intl.NumberFormat(resolveLocale(lang), {
+    style: "currency",
+    currency,
+    currencyDisplay: "narrowSymbol",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(n);
+}
+
 /** Formats a Date as a localized long month + year (for the Dashboard header). */
 export function formatCurrentMonthLong(date: Date = new Date(), lang?: Language): string {
   return new Intl.DateTimeFormat(resolveLocale(lang), {
     month: "long",
     year: "numeric",
   }).format(date);
+}
+
+/** Returns localized short weekday labels starting Monday (index 0 = Monday .. 6 = Sunday). */
+export function getWeekdayLabels(lang?: Language): string[] {
+  const locale = resolveLocale(lang);
+  const formatter = new Intl.DateTimeFormat(locale, { weekday: "short" });
+  // 2026-01-05 is a Monday.
+  return Array.from({ length: 7 }, (_, i) =>
+    formatter.format(new Date(2026, 0, 5 + i)).replace(/\.$/, ""),
+  );
 }
 
 /** Current local date as "YYYY-MM-DD" for <input type="date">. */

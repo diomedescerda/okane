@@ -5,9 +5,12 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { Brand } from "../components/Brand";
 import { ConnectionStatus } from "../components/ConnectionStatus";
+import { LanguageSwitcher } from "../components/LanguageSwitcher";
+import { useI18n } from "../i18n/I18nContext";
 
 export function LoginPage() {
   const { user, login, register } = useAuth();
+  const { language, t, tError } = useI18n();
   const navigate = useNavigate();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [name, setName] = useState("");
@@ -16,7 +19,9 @@ export function LoginPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { document.title = "おかね · Okane"; }, []);
+  useEffect(() => {
+    document.title = "おかね · Okane";
+  }, []);
 
   if (user) return <Navigate to="/" replace />;
 
@@ -28,52 +33,59 @@ export function LoginPage() {
       if (mode === "login") {
         await login(email, password);
       } else {
-        await register(email, password, name);
+        await register(email, password, name, language);
       }
       navigate("/", { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(tError(err, "common.somethingWentWrong"));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center px-[max(1rem,env(safe-area-inset-left),env(safe-area-inset-right))] py-[max(2rem,env(safe-area-inset-top),env(safe-area-inset-bottom))]">
+    <div className="flex min-h-dvh flex-col items-center justify-center px-[max(1rem,env(safe-area-inset-left),env(safe-area-inset-right))] py-[max(2rem,env(safe-area-inset-top),env(safe-area-inset-bottom))]">
       <div className="w-full max-w-sm">
+        <div className="mb-6 flex justify-center">
+          <LanguageSwitcher />
+        </div>
+
         <div className="mb-8 text-center">
           <Brand stacked />
-          <p className="mt-4 text-sm text-slate-400">Your money, a little clearer.</p>
+          <p className="mt-4 text-sm text-slate-400">{t("login.tagline")}</p>
           <h1 className="mt-6 text-xl font-medium">
-            {mode === "login" ? "Sign in to your accounts" : "Create your account"}
+            {mode === "login" ? t("login.signInHeading") : t("login.registerHeading")}
           </h1>
         </div>
 
         <ConnectionStatus />
-        <form onSubmit={onSubmit} className="space-y-4 rounded-3xl border border-slate-800 bg-slate-900/60 p-5 sm:p-6">
+        <form
+          onSubmit={onSubmit}
+          className="space-y-4 rounded-3xl border border-slate-800 bg-slate-900/60 p-5 sm:p-6"
+        >
           {mode === "register" && (
-            <Field label="Name">
+            <Field label={t("login.nameLabel")}>
               <input
                 className="input"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Your name"
+                placeholder={t("login.namePlaceholder")}
                 autoComplete="name"
               />
             </Field>
           )}
-          <Field label="Email">
+          <Field label={t("login.emailLabel")}>
             <input
               className="input"
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              placeholder={t("login.emailPlaceholder")}
               autoComplete="email"
             />
           </Field>
-          <Field label="Password">
+          <Field label={t("login.passwordLabel")}>
             <input
               className="input"
               type="password"
@@ -81,19 +93,22 @@ export function LoginPage() {
               minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
+              placeholder={t("login.passwordPlaceholder")}
               autoComplete={mode === "login" ? "current-password" : "new-password"}
             />
           </Field>
 
           {error && (
-            <p role="alert" className="rounded-lg border border-rose-900/60 bg-rose-950/40 px-3 py-2 text-sm text-rose-300">
+            <p
+              role="alert"
+              className="rounded-lg border border-rose-900/60 bg-rose-950/40 px-3 py-2 text-sm text-rose-300"
+            >
               {error}
             </p>
           )}
 
           <button className="btn-primary w-full" disabled={busy} type="submit">
-            {busy ? "…" : mode === "login" ? "Sign in" : "Create account"}
+            {busy ? "…" : mode === "login" ? t("login.signInButton") : t("login.createAccountButton")}
           </button>
 
           <button
@@ -104,7 +119,7 @@ export function LoginPage() {
               setError("");
             }}
           >
-            {mode === "login" ? "No account yet? Create one" : "Already have an account? Sign in"}
+            {mode === "login" ? t("login.switchToRegister") : t("login.switchToLogin")}
           </button>
         </form>
       </div>

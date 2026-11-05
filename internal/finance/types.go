@@ -117,6 +117,7 @@ type TransactionFilter struct {
 // period. Total is the signed net sum of matching transactions.
 type CategoryTotal struct {
 	CategoryID *uuid.UUID          `json:"category_id,omitempty"`
+	Slug       string              `json:"slug,omitempty"`
 	Name       string              `json:"name"`
 	Icon       string              `json:"icon,omitempty"`
 	Color      string              `json:"color,omitempty"`

@@ -8,7 +8,8 @@ interface AuthState {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
+  register: (email: string, password: string, name: string, language?: "en" | "es" | "ja") => Promise<void>;
+  updateLanguage: (language: "en" | "es" | "ja") => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -40,8 +41,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(await authApi.login(email, password));
   }, []);
 
-  const register = useCallback(async (email: string, password: string, name: string) => {
-    setUser(await authApi.register(email, password, name));
+  const register = useCallback(
+    async (email: string, password: string, name: string, language?: "en" | "es" | "ja") => {
+      setUser(await authApi.register(email, password, name, language));
+    },
+    [],
+  );
+
+  const updateLanguage = useCallback(async (language: "en" | "es" | "ja") => {
+    const updated = await authApi.updateMe({ language });
+    setUser(updated);
   }, []);
 
   const logout = useCallback(async () => {
@@ -53,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, updateLanguage, logout }}>
       {children}
     </AuthContext.Provider>
   );

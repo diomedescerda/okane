@@ -123,6 +123,7 @@ export interface Transaction {
 
 export interface CategoryTotal {
   category_id?: string;
+  slug?: string;
   name: string;
   icon?: string;
   color?: string;
@@ -273,6 +274,7 @@ export interface ImportRowView {
   direction: Direction;
   category_id?: string;
   category_name?: string;
+  category_slug?: string;
   category_source?: string;
   duplicate: boolean;
   repeated: boolean;
@@ -398,6 +400,7 @@ export const RULE_MATCH_TYPES: Record<MatchField, MatchType[]> = {
 
 export interface CategoryGroup {
   label: string;
+  slug?: string;
   icon?: string;
   options: Category[];
 }
@@ -420,6 +423,11 @@ export function categoryGroups(categories: Category[], direction: Direction): Ca
   }
   return roots.map((root) => {
     const options = children.get(root.id) ?? [];
-    return { label: root.name, icon: root.icon, options: options.length > 0 ? options : [root] };
+    return {
+      label: root.name,
+      slug: root.slug,
+      icon: root.icon,
+      options: options.length > 0 ? options : [root],
+    };
   });
 }

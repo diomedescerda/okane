@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { useAuth } from "./auth/AuthContext";
 import { Brand } from "./components/Brand";
+import { useI18n } from "./i18n/I18nContext";
 import { AccountsPage } from "./pages/AccountsPage";
 import { BanksPage } from "./pages/BanksPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -12,9 +13,13 @@ import { TransactionsPage } from "./pages/TransactionsPage";
 
 function Protected({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
+  const { t } = useI18n();
   if (loading) {
     return (
-      <div role="status" className="flex min-h-dvh flex-col items-center justify-center gap-6 text-slate-500"><Brand stacked /><span>Loading your accounts…</span></div>
+      <div role="status" className="flex min-h-dvh flex-col items-center justify-center gap-6 text-slate-500">
+        <Brand stacked />
+        <span>{t("app.loadingAccounts")}</span>
+      </div>
     );
   }
   if (!user) return <Navigate to="/login" replace />;

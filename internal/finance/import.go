@@ -49,6 +49,7 @@ type ImportRowView struct {
 	Direction   string `json:"direction"`
 	// Suggested category from the user's rules, shown in preview.
 	CategoryID     *string `json:"category_id,omitempty"`
+	CategorySlug   *string `json:"category_slug,omitempty"`
 	CategoryName   *string `json:"category_name,omitempty"`
 	CategorySource string  `json:"category_source,omitempty"`
 	Duplicate      bool    `json:"duplicate"`

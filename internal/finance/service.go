@@ -779,8 +779,10 @@ func (s *Service) PreviewImport(ctx context.Context, userID, accountID uuid.UUID
 		}
 		if category := suggestions.suggest(importRuleRow(row)); category != nil {
 			id := category.ID.String()
+			slug := category.Slug
 			name := category.Name
 			view.CategoryID = &id
+			view.CategorySlug = &slug
 			view.CategoryName = &name
 			view.CategorySource = string(domain.CategorySourceRule)
 		}

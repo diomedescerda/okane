@@ -43,9 +43,17 @@ func (s *Service) Store() *Store { return NewStore(s.pool) }
 func (s *Service) TTL() time.Duration { return s.ttl }
 
 // Register creates a user and a session, returning the session token.
-func (s *Service) Register(ctx context.Context, email, password, name string) (domain.User, string, error) {
+func (s *Service) Register(ctx context.Context, email, password, name string, language ...string) (domain.User, string, error) {
 	email = normalizeEmail(email)
 	name = strings.TrimSpace(name)
+	rawLang := ""
+	if len(language) > 0 {
+		rawLang = strings.ToLower(strings.TrimSpace(language[0]))
+	}
+	lang, ok := domain.NormalizeLanguage(rawLang)
+	if !ok {
+		return domain.User{}, "", fmt.Errorf("unsupported language %q", rawLang)
+	}
 
 	if _, err := mail.ParseAddress(email); err != nil || !strings.Contains(email, "@") {
 		return domain.User{}, "", fmt.Errorf("enter a valid email address")
@@ -60,7 +68,7 @@ func (s *Service) Register(ctx context.Context, email, password, name string) (d
 	}
 
 	store := s.Store()
-	user, err := store.CreateUser(ctx, email, hash, name)
+	user, err := store.CreateUser(ctx, email, hash, name, lang)
 	if err != nil {
 		return domain.User{}, "", err
 	}
@@ -70,6 +78,19 @@ func (s *Service) Register(ctx context.Context, email, password, name string) (d
 		return domain.User{}, "", err
 	}
 	return user, token, nil
+}
+
+// UpdateLanguage persists the user's preferred UI language ("en", "es", "ja").
+func (s *Service) UpdateLanguage(ctx context.Context, userID uuid.UUID, language string) (domain.User, error) {
+	rawLang := strings.ToLower(strings.TrimSpace(language))
+	if rawLang == "" {
+		return domain.User{}, fmt.Errorf("language is required")
+	}
+	lang, ok := domain.NormalizeLanguage(rawLang)
+	if !ok {
+		return domain.User{}, fmt.Errorf("unsupported language %q", rawLang)
+	}
+	return s.Store().UpdateUserLanguage(ctx, userID, lang)
 }
 
 // Login verifies credentials and returns a fresh session token.

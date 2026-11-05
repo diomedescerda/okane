@@ -10,6 +10,7 @@ import {
   type Direction,
   type Transaction,
 } from "../api/finance";
+import { useI18n } from "../i18n/I18nContext";
 import { dateInputToISO, isoToDateInput, todayInputValue } from "../lib/format";
 
 import { Modal } from "./Modal";
@@ -22,18 +23,31 @@ interface TransactionModalProps {
   onClose: () => void;
 }
 
-export function TransactionModal({ accounts, categories, transaction, defaultAccountId, onClose }: TransactionModalProps) {
+export function TransactionModal({
+  accounts,
+  categories,
+  transaction,
+  defaultAccountId,
+  onClose,
+}: TransactionModalProps) {
   const queryClient = useQueryClient();
+  const { t, tCategory, tError } = useI18n();
   const editing = Boolean(transaction);
 
   const [direction, setDirection] = useState<Direction>(transaction?.direction ?? "out");
-  const [amount, setAmount] = useState(transaction ? String(Math.abs(Number(transaction.amount))) : "");
+  const [amount, setAmount] = useState(
+    transaction ? String(Math.abs(Number(transaction.amount))) : "",
+  );
   const [description, setDescription] = useState(transaction?.description ?? "");
-  const [accountId, setAccountId] = useState(transaction?.account_id ?? defaultAccountId ?? accounts[0]?.id ?? "");
+  const [accountId, setAccountId] = useState(
+    transaction?.account_id ?? defaultAccountId ?? accounts[0]?.id ?? "",
+  );
   const [categoryId, setCategoryId] = useState(transaction?.category_id ?? "");
   const [merchant, setMerchant] = useState(transaction?.merchant ?? "");
   const [notes, setNotes] = useState(transaction?.notes ?? "");
-  const [date, setDate] = useState(transaction ? isoToDateInput(transaction.occurred_at) : todayInputValue());
+  const [date, setDate] = useState(
+    transaction ? isoToDateInput(transaction.occurred_at) : todayInputValue(),
+  );
 
   const groups = categoryGroups(categories, direction);
 
@@ -43,12 +57,16 @@ export function TransactionModal({ accounts, categories, transaction, defaultAcc
       if (editing) {
         const patch: Record<string, unknown> = {};
         if (description.trim() !== transaction!.description) patch.description = description.trim();
-        if (Number(trimmedAmount) !== Number(transaction!.amount) || direction !== transaction!.direction) {
+        if (
+          Number(trimmedAmount) !== Number(transaction!.amount) ||
+          direction !== transaction!.direction
+        ) {
           patch.amount = trimmedAmount;
           patch.direction = direction;
         }
         if (categoryId !== (transaction!.category_id ?? "")) patch.category_id = categoryId || null;
-        if (merchant.trim() !== (transaction!.merchant ?? "")) patch.merchant = merchant.trim() || null;
+        if (merchant.trim() !== (transaction!.merchant ?? ""))
+          patch.merchant = merchant.trim() || null;
         if (notes.trim() !== (transaction!.notes ?? "")) patch.notes = notes.trim() || null;
         return financeApi.updateTransaction(transaction!.id, patch);
       }
@@ -76,7 +94,8 @@ export function TransactionModal({ accounts, categories, transaction, defaultAcc
     event.preventDefault();
     if (mutation.isPending) return;
     const value = Number(amount);
-    if (!Number.isFinite(value) || value <= 0 || !description.trim() || (!editing && !accountId)) return;
+    if (!Number.isFinite(value) || value <= 0 || !description.trim() || (!editing && !accountId))
+      return;
     mutation.mutate();
   }
 
@@ -86,19 +105,28 @@ export function TransactionModal({ accounts, categories, transaction, defaultAcc
     setCategoryId("");
   }
 
-  const error = mutation.error instanceof ApiError ? mutation.error.message : null;
+  const error = mutation.error instanceof ApiError ? tError(mutation.error) : null;
 
   return (
     <Modal
-      title={editing ? "Edit transaction" : "Add transaction"}
+      title={editing ? t("transactionModal.editTitle") : t("transactionModal.addTitle")}
       onClose={onClose}
       footer={
         <>
           <button type="button" className="btn-secondary" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </button>
-          <button type="submit" form="transaction-form" className="btn-primary" disabled={mutation.isPending}>
-            {mutation.isPending ? "Saving…" : editing ? "Save changes" : "Add transaction"}
+          <button
+            type="submit"
+            form="transaction-form"
+            className="btn-primary"
+            disabled={mutation.isPending}
+          >
+            {mutation.isPending
+              ? t("common.saving")
+              : editing
+                ? t("common.saveChanges")
+                : t("transactionModal.addTitle")}
           </button>
         </>
       }
@@ -107,8 +135,8 @@ export function TransactionModal({ accounts, categories, transaction, defaultAcc
         <div className="grid grid-cols-2 gap-2 rounded-lg bg-slate-950 p-1">
           {(
             [
-              { value: "out", label: "Expense" },
-              { value: "in", label: "Income" },
+              { value: "out", label: t("transactionModal.expense") },
+              { value: "in", label: t("transactionModal.income") },
             ] as const
           ).map((option) => (
             <button
@@ -130,7 +158,7 @@ export function TransactionModal({ accounts, categories, transaction, defaultAcc
 
         <div className="form-grid">
           <label className="block">
-            <span className="label">Amount</span>
+            <span className="label">{t("transactionModal.amountLabel")}</span>
             <input
               className="input text-lg tabular-nums"
               value={amount}
@@ -142,7 +170,7 @@ export function TransactionModal({ accounts, categories, transaction, defaultAcc
             />
           </label>
           <label className="block">
-            <span className="label">Date</span>
+            <span className="label">{t("transactionModal.dateLabel")}</span>
             <input
               type="date"
               className="input"
@@ -154,12 +182,12 @@ export function TransactionModal({ accounts, categories, transaction, defaultAcc
         </div>
 
         <label className="block">
-          <span className="label">Description</span>
+          <span className="label">{t("transactionModal.descriptionLabel")}</span>
           <input
             className="input"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            placeholder="Supermercado"
+            placeholder={t("transactionModal.descriptionPlaceholder")}
             required
             maxLength={200}
           />
@@ -167,7 +195,7 @@ export function TransactionModal({ accounts, categories, transaction, defaultAcc
 
         <div className="form-grid">
           <label className="block">
-            <span className="label">Account</span>
+            <span className="label">{t("transactionModal.accountLabel")}</span>
             <select
               className="input"
               value={accountId}
@@ -183,46 +211,61 @@ export function TransactionModal({ accounts, categories, transaction, defaultAcc
             </select>
           </label>
           <label className="block">
-            <span className="label">Category</span>
-            <select className="input" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
-              <option value="">Uncategorized</option>
-              {groups.map((group) => (
-                <optgroup key={group.label} label={group.icon ? `${group.icon} ${group.label}` : group.label}>
-                  {group.options.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.icon ? `${category.icon} ${category.name}` : category.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
+            <span className="label">{t("transactionModal.categoryLabel")}</span>
+            <select
+              className="input"
+              value={categoryId}
+              onChange={(event) => setCategoryId(event.target.value)}
+            >
+              <option value="">{t("common.uncategorized")}</option>
+              {groups.map((group) => {
+                const groupLabel = tCategory(group.slug, group.label);
+                return (
+                  <optgroup
+                    key={group.slug ?? group.label}
+                    label={group.icon ? `${group.icon} ${groupLabel}` : groupLabel}
+                  >
+                    {group.options.map((category) => {
+                      const catLabel = tCategory(category.slug, category.name);
+                      return (
+                        <option key={category.id} value={category.id}>
+                          {category.icon ? `${category.icon} ${catLabel}` : catLabel}
+                        </option>
+                      );
+                    })}
+                  </optgroup>
+                );
+              })}
             </select>
           </label>
         </div>
 
         <div className="form-grid">
           <label className="block">
-            <span className="label">Merchant (optional)</span>
+            <span className="label">{t("transactionModal.merchantLabel")}</span>
             <input
               className="input"
               value={merchant}
               onChange={(event) => setMerchant(event.target.value)}
-              placeholder="Walmart"
+              placeholder={t("transactionModal.merchantPlaceholder")}
               maxLength={120}
             />
           </label>
           <label className="block">
-            <span className="label">Notes (optional)</span>
+            <span className="label">{t("transactionModal.notesLabel")}</span>
             <input
               className="input"
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
-              placeholder="Weekly groceries"
+              placeholder={t("transactionModal.notesPlaceholder")}
             />
           </label>
         </div>
 
         {error && (
-          <p className="rounded-lg border border-rose-900/60 bg-rose-950/40 px-3 py-2 text-sm text-rose-300">{error}</p>
+          <p className="rounded-lg border border-rose-900/60 bg-rose-950/40 px-3 py-2 text-sm text-rose-300">
+            {error}
+          </p>
         )}
       </form>
     </Modal>

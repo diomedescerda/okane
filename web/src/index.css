@@ -213,6 +213,7 @@ a {
   }
   .responsive-table td:first-child,
   .responsive-table td:last-child,
+  .responsive-table td[data-col="description"],
   .responsive-table td[data-label="Description"] {
     grid-column: 1 / -1;
   }
@@ -224,27 +225,35 @@ a {
     justify-content: flex-start;
     gap: 0.5rem;
   }
+  .responsive-table td[data-col="amount"],
+  .responsive-table td[data-col="balance"],
   .responsive-table td[data-label="Amount"],
   .responsive-table td[data-label="Balance"] {
     font-size: 1rem;
     font-weight: 600;
   }
+  .transaction-table td[data-col="description"],
   .transaction-table td[data-label="Description"] {
     order: 0;
   }
+  .transaction-table td[data-col="date"],
   .transaction-table td[data-label="Date"] {
     order: 1;
     grid-column: auto;
   }
+  .transaction-table td[data-col="amount"],
   .transaction-table td[data-label="Amount"] {
     order: 2;
   }
+  .transaction-table td[data-col="category"],
   .transaction-table td[data-label="Category"] {
     order: 3;
   }
+  .transaction-table td[data-col="account"],
   .transaction-table td[data-label="Account"] {
     order: 4;
   }
+  .transaction-table td[data-col="actions"],
   .transaction-table td[data-label="Actions"] {
     order: 5;
   }

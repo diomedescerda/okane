@@ -2,35 +2,47 @@ import { useEffect, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
+import { useI18n } from "../i18n/I18nContext";
+import type { TranslationKey } from "../lib/i18n";
 import { Brand } from "./Brand";
-import { NavIcon } from "./NavIcon";
 import { ConnectionStatus } from "./ConnectionStatus";
+import { LanguageSwitcher } from "./LanguageSwitcher";
+import { NavIcon } from "./NavIcon";
 
-const NAV = [
-  { to: "/", label: "Overview", mobileLabel: "Overview", icon: "overview" },
+const NAV: ReadonlyArray<{
+  to: string;
+  labelKey: TranslationKey;
+  mobileLabelKey: TranslationKey;
+  icon: "overview" | "transactions" | "accounts" | "banks" | "rules";
+}> = [
+  { to: "/", labelKey: "nav.overview", mobileLabelKey: "nav.overview", icon: "overview" },
   {
     to: "/transactions",
-    label: "Transactions",
-    mobileLabel: "Activity",
+    labelKey: "nav.transactions",
+    mobileLabelKey: "nav.activity",
     icon: "transactions",
   },
   {
     to: "/accounts",
-    label: "Accounts",
-    mobileLabel: "Accounts",
+    labelKey: "nav.accounts",
+    mobileLabelKey: "nav.accounts",
     icon: "accounts",
   },
-  { to: "/banks", label: "Banks", mobileLabel: "Banks", icon: "banks" },
-  { to: "/rules", label: "Rules", mobileLabel: "Rules", icon: "rules" },
-] as const;
+  { to: "/banks", labelKey: "nav.banks", mobileLabelKey: "nav.banks", icon: "banks" },
+  { to: "/rules", labelKey: "nav.rules", mobileLabelKey: "nav.rules", icon: "rules" },
+];
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
+  const { language, t } = useI18n();
   const navigate = useNavigate();
   const { pathname } = useLocation();
+
   useEffect(() => {
-    document.title = `${NAV.find((item) => item.to === pathname)?.label ?? "Okane"} · おかね`;
-  }, [pathname]);
+    const active = NAV.find((item) => item.to === pathname);
+    const pageTitle = active ? t(active.labelKey) : "Okane";
+    document.title = `${pageTitle} · おかね`;
+  }, [pathname, language, t]);
 
   async function onLogout() {
     await logout();
@@ -43,20 +55,20 @@ export function AppLayout({ children }: { children: ReactNode }) {
         href="#main-content"
         className="sr-only z-50 rounded-lg bg-emerald-400 p-3 text-slate-950 focus:not-sr-only focus:absolute focus:left-4 focus:top-4"
       >
-        Skip to content
+        {t("layout.skipToContent")}
       </a>
       <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-slate-800 bg-slate-900/35 px-4 pb-6 pt-[max(2rem,env(safe-area-inset-top))] lg:flex">
         <Link
           to="/"
-          aria-label="Okane overview"
+          aria-label={t("layout.okaneOverview")}
           className="mb-10 self-start px-2"
         >
           <Brand />
         </Link>
         <div className="mb-3 px-3 text-[10px] font-medium uppercase tracking-[0.2em] text-slate-500">
-          Your finances
+          {t("layout.yourFinances")}
         </div>
-        <nav aria-label="Main navigation" className="space-y-1.5">
+        <nav aria-label={t("layout.mainNavigation")} className="space-y-1.5">
           {NAV.map((item) => (
             <NavLink
               key={item.to}
@@ -67,7 +79,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               }
             >
               <NavIcon name={item.icon} />
-              {item.label}
+              {t(item.labelKey)}
             </NavLink>
           ))}
         </nav>
@@ -77,8 +89,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
             aria-hidden="true"
           />
           <p className="text-xs leading-relaxed text-slate-500">
-            A little clarity.
-            <br />A little more peace of mind.
+            {t("layout.taglineLine1")}
+            <br />
+            {t("layout.taglineLine2")}
           </p>
         </div>
       </aside>
@@ -87,27 +100,32 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <header className="app-header sticky top-0 z-20 flex min-h-19 items-center justify-between gap-3 border-b border-slate-800 bg-slate-950/95 px-4 pb-3 backdrop-blur-md sm:px-6 lg:px-8">
           <Link
             to="/"
-            aria-label="Okane overview"
+            aria-label={t("layout.okaneOverview")}
             className="shrink-0 lg:hidden"
           >
             <Brand />
           </Link>
           <div className="hidden min-w-0 text-sm text-slate-400 sm:block">
             <span className="block text-[10px] uppercase tracking-[0.18em] text-slate-500">
-              A clearer view
+              {t("layout.clearerView")}
             </span>
             <span className="block truncate">
-              {user?.name ? `Welcome back, ${user.name}` : "Welcome back"}
+              {user?.name
+                ? t("layout.welcomeBackName", { name: user.name })
+                : t("layout.welcomeBack")}
             </span>
           </div>
-          <button
-            onClick={onLogout}
-            className="btn-ghost ml-auto shrink-0 gap-2"
-            aria-label="Sign out"
-          >
-            <NavIcon name="logout" />
-            <span className="hidden sm:inline">Sign out</span>
-          </button>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <LanguageSwitcher />
+            <button
+              onClick={onLogout}
+              className="btn-ghost shrink-0 gap-2"
+              aria-label={t("layout.signOut")}
+            >
+              <NavIcon name="logout" />
+              <span className="hidden sm:inline">{t("layout.signOut")}</span>
+            </button>
+          </div>
         </header>
         <ConnectionStatus />
         <main
@@ -119,7 +137,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </div>
 
       <nav
-        aria-label="Mobile navigation"
+        aria-label={t("layout.mobileNavigation")}
         className="mobile-nav fixed inset-x-0 bottom-0 z-30 border-t border-slate-700 bg-slate-950/95 backdrop-blur-md lg:hidden"
       >
         <div className="mx-auto grid max-w-xl grid-cols-5 gap-1">
@@ -128,13 +146,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
               key={item.to}
               to={item.to}
               end={item.to === "/"}
-              aria-label={item.label}
+              aria-label={t(item.labelKey)}
               className={({ isActive }) =>
                 `flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium transition ${isActive ? "bg-emerald-400/10 text-emerald-300" : "text-slate-400 hover:bg-slate-900"}`
               }
             >
               <NavIcon name={item.icon} />
-              <span>{item.mobileLabel}</span>
+              <span>{t(item.mobileLabelKey)}</span>
             </NavLink>
           ))}
         </div>

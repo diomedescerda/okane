@@ -48,6 +48,7 @@ func NewRouter(cfg *config.Config, pool *pgxpool.Pool, authSvc *auth.Service, fi
 				r.Use(RequireSameOrigin(cfg))
 				r.Post("/logout", ah.Logout)
 				r.Get("/me", ah.Me)
+				r.Patch("/me", ah.UpdateMe)
 			})
 		})
 

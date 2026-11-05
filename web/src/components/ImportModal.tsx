@@ -1,13 +1,14 @@
 import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { ApiError } from "../api/client";
 import { financeApi, type Account, type ImportPreview, type ImportResult } from "../api/finance";
+import { useI18n } from "../i18n/I18nContext";
 import { formatSigned } from "../lib/format";
 import { Modal } from "./Modal";
 
 export function ImportModal({ account, onClose }: { account: Account; onClose: () => void }) {
   const queryClient = useQueryClient();
+  const { t, tCategory, tError } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
@@ -15,7 +16,7 @@ export function ImportModal({ account, onClose }: { account: Account; onClose: (
   const [error, setError] = useState<string | null>(null);
 
   function fail(err: unknown) {
-    setError(err instanceof ApiError ? err.message : "Something went wrong");
+    setError(tError(err, "importModal.failed"));
   }
 
   const previewMutation = useMutation({
@@ -51,17 +52,17 @@ export function ImportModal({ account, onClose }: { account: Account; onClose: (
 
   return (
     <Modal
-      title={`Import statement · ${account.name}`}
+      title={t("importModal.title", { name: account.name })}
       onClose={onClose}
       footer={
         result ? (
           <button type="button" className="btn-primary" onClick={onClose}>
-            Done
+            {t("common.done")}
           </button>
         ) : (
           <>
             <button type="button" className="btn-ghost" onClick={onClose} disabled={pending}>
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -76,7 +77,11 @@ export function ImportModal({ account, onClose }: { account: Account; onClose: (
                 }
               }}
             >
-              {pending ? "Working…" : preview ? `Import ${preview.total} transactions` : "Preview"}
+              {pending
+                ? t("common.working")
+                : preview
+                  ? t("importModal.importButton", { count: preview.total })
+                  : t("importModal.previewButton")}
             </button>
           </>
         )
@@ -84,8 +89,9 @@ export function ImportModal({ account, onClose }: { account: Account; onClose: (
     >
       <div className="space-y-4">
         <p className="text-sm text-slate-400">
-          Upload a CSV or OFX statement exported from {account.institution_name || "your bank"}.
-          Nothing is saved until you confirm the preview.
+          {t("importModal.uploadHint", {
+            bank: account.institution_name || t("importModal.yourBank"),
+          })}
         </p>
 
         <input
@@ -101,21 +107,40 @@ export function ImportModal({ account, onClose }: { account: Account; onClose: (
         {preview && !result && (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-400">
-              <span>{preview.total} transactions found</span>
-              {preview.date_from && <span>{preview.date_from} → {preview.date_to}</span>}
-              {preview.existing > 0 && <span className="text-amber-400">{preview.existing} already imported</span>}
-              {preview.repeated > 0 && <span className="text-amber-400">{preview.repeated} repeated in the file</span>}
-              {preview.skipped > 0 && <span>{preview.skipped} rows skipped</span>}
+              <span>{t("importModal.transactionsFound", { count: preview.total })}</span>
+              {preview.date_from && (
+                <span>
+                  {preview.date_from} → {preview.date_to}
+                </span>
+              )}
+              {preview.existing > 0 && (
+                <span className="text-amber-400">
+                  {t("importModal.alreadyImported", { count: preview.existing })}
+                </span>
+              )}
+              {preview.repeated > 0 && (
+                <span className="text-amber-400">
+                  {t("importModal.repeatedInFile", { count: preview.repeated })}
+                </span>
+              )}
+              {preview.skipped > 0 && (
+                <span>{t("importModal.rowsSkipped", { count: preview.skipped })}</span>
+              )}
             </div>
 
-            <div className="max-h-72 overflow-auto rounded-lg border border-slate-800" role="region" aria-label="Statement preview" tabIndex={0}>
+            <div
+              className="max-h-72 overflow-auto rounded-lg border border-slate-800"
+              role="region"
+              aria-label={t("importModal.previewButton")}
+              tabIndex={0}
+            >
               <table className="w-full min-w-[32rem] text-sm">
                 <thead className="sticky top-0 bg-slate-900 text-left text-xs uppercase tracking-wide text-slate-500">
                   <tr>
-                    <th className="px-3 py-2">Date</th>
-                    <th className="px-3 py-2">Description</th>
-                    <th className="px-3 py-2">Category</th>
-                    <th className="px-3 py-2 text-right">Amount</th>
+                    <th className="px-3 py-2">{t("transactions.colDate")}</th>
+                    <th className="px-3 py-2">{t("transactions.colDescription")}</th>
+                    <th className="px-3 py-2">{t("transactions.colCategory")}</th>
+                    <th className="px-3 py-2 text-right">{t("transactions.colAmount")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -123,22 +148,24 @@ export function ImportModal({ account, onClose }: { account: Account; onClose: (
                     <tr key={index} className="border-t border-slate-800">
                       <td className="whitespace-nowrap px-3 py-2 text-slate-400">{row.date}</td>
                       <td className="px-3 py-2">
-                        <span className={row.duplicate ? "text-slate-500" : "text-slate-200"}>{row.description}</span>
+                        <span className={row.duplicate ? "text-slate-500" : "text-slate-200"}>
+                          {row.description}
+                        </span>
                         {row.duplicate && (
                           <span className="ml-2 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] uppercase text-amber-400">
-                            already imported
+                            {t("importModal.badgeAlreadyImported")}
                           </span>
                         )}
                         {row.repeated && (
                           <span className="ml-2 rounded bg-slate-800 px-1.5 py-0.5 text-[10px] uppercase text-slate-400">
-                            in file
+                            {t("importModal.badgeInFile")}
                           </span>
                         )}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2">
                         {row.category_name ? (
                           <span className="inline-flex items-center gap-1 text-xs">
-                            {row.category_name}
+                            {tCategory(row.category_slug, row.category_name)}
                             {row.category_source === "rule" && (
                               <span className="rounded bg-sky-500/10 px-1 py-px text-[10px] font-medium uppercase text-sky-400">
                                 R
@@ -154,21 +181,34 @@ export function ImportModal({ account, onClose }: { account: Account; onClose: (
                           <span className="text-xs text-slate-600">—</span>
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{formatSigned(row.amount, account.currency)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                        {formatSigned(row.amount, account.currency)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            {preview.truncated && <p className="text-xs text-slate-500">Showing the first {preview.rows.length} rows of {preview.total}.</p>}
+            {preview.truncated && (
+              <p className="text-xs text-slate-500">
+                {t("importModal.truncatedNote", {
+                  shown: preview.rows.length,
+                  total: preview.total,
+                })}
+              </p>
+            )}
           </div>
         )}
 
         {result && (
           <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm">
-            <p className="font-medium text-emerald-400">Import finished</p>
+            <p className="font-medium text-emerald-400">{t("importModal.finishedTitle")}</p>
             <p className="mt-1 text-slate-300">
-              {result.imported} imported · {result.duplicate} already existed · {result.skipped} skipped
+              {t("importModal.finishedSummary", {
+                imported: result.imported,
+                duplicate: result.duplicate,
+                skipped: result.skipped,
+              })}
             </p>
           </div>
         )}

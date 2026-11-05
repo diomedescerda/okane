@@ -2,13 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
-import { ACCOUNT_TYPE_LABELS, financeApi, type Account } from "../api/finance";
-import { ApiError } from "../api/client";
+import { financeApi, type Account } from "../api/finance";
 import { AccountModal } from "../components/AccountModal";
 import { ImportModal } from "../components/ImportModal";
 import { AppLayout } from "../components/AppLayout";
 import { InstitutionIcon } from "../components/InstitutionIcon";
 import { EmptyState, ErrorMessage, Loading } from "../components/State";
+import { useI18n } from "../i18n/I18nContext";
 import { formatMoney } from "../lib/format";
 
 const TYPE_ICONS: Record<string, string> = {
@@ -22,6 +22,7 @@ const TYPE_ICONS: Record<string, string> = {
 
 export function AccountsPage() {
   const queryClient = useQueryClient();
+  const { t, tAccountType, tError } = useI18n();
   const [modal, setModal] = useState<{ account?: Account } | null>(null);
   const [importModal, setImportModal] = useState<{ account: Account } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -37,15 +38,15 @@ export function AccountsPage() {
       void queryClient.invalidateQueries({ queryKey: ["summary"] });
       void queryClient.invalidateQueries({ queryKey: ["months"] });
     },
-    onError: (error) => {
-      setError(error instanceof ApiError ? error.message : "Could not delete the account.");
+    onError: (err) => {
+      setError(tError(err, "accounts.deleteFailed"));
     },
   });
 
   const accounts = accountsQuery.data?.accounts ?? [];
 
   function onDelete(account: Account) {
-    if (window.confirm(`Delete "${account.name}" and all of its transactions?`)) {
+    if (window.confirm(t("accounts.deleteConfirm", { name: account.name }))) {
       deleteMutation.mutate(account.id);
     }
   }
@@ -54,9 +55,9 @@ export function AccountsPage() {
     <AppLayout>
       <div className="mx-auto max-w-5xl space-y-6">
         <div className="page-header">
-          <h1 className="text-2xl font-semibold tracking-tight">Accounts</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("nav.accounts")}</h1>
           <button className="btn-primary" onClick={() => setModal({})}>
-            + New account
+            {t("accounts.newAccount")}
           </button>
         </div>
 
@@ -67,19 +68,11 @@ export function AccountsPage() {
         ) : accounts.length === 0 ? (
           <EmptyState
             icon="🏦"
-            title="No accounts yet"
-            description={
-              <>
-                Add the accounts you want to track. Connect a bank from the{" "}
-                <Link to="/banks" className="text-emerald-400 hover:text-emerald-300">
-                  Banks
-                </Link>{" "}
-                page or add them manually.
-              </>
-            }
+            title={t("accounts.emptyTitle")}
+            description={t("accounts.emptyDescription")}
           >
             <button className="btn-primary" onClick={() => setModal({})}>
-              Add your first account
+              {t("accounts.addFirstAccount")}
             </button>
           </EmptyState>
         ) : (
@@ -87,17 +80,23 @@ export function AccountsPage() {
             <table role="table" className="responsive-table text-sm">
               <thead className="bg-slate-900/80 text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Account</th>
-                  <th className="px-4 py-3 font-medium">Type</th>
-                  <th className="px-4 py-3 text-right font-medium">Balance</th>
-                  <th className="px-4 py-3 text-right font-medium">Transactions</th>
+                  <th className="px-4 py-3 font-medium">{t("accounts.colAccount")}</th>
+                  <th className="px-4 py-3 font-medium">{t("accounts.colType")}</th>
+                  <th className="px-4 py-3 text-right font-medium">{t("accounts.colBalance")}</th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    {t("accounts.colTransactions")}
+                  </th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/80">
                 {accounts.map((account) => (
                   <tr key={account.id} className={account.is_active ? "" : "opacity-50"}>
-                    <td data-label="Account" className="px-4 py-3">
+                    <td
+                      data-col="account"
+                      data-label={t("accounts.colAccount")}
+                      className="px-4 py-3"
+                    >
                       <div className="flex items-center gap-2 font-medium">
                         {account.link_id ? (
                           <InstitutionIcon
@@ -111,37 +110,56 @@ export function AccountsPage() {
                           <span aria-hidden>{TYPE_ICONS[account.type] ?? "💼"}</span>
                         )}
                         <span className="min-w-0 break-words">{account.name}</span>
-                        {!account.is_active && <span className="text-xs text-slate-500">(inactive)</span>}
+                        {!account.is_active && (
+                          <span className="text-xs text-slate-500">{t("accounts.inactive")}</span>
+                        )}
                       </div>
                       <div className="text-xs text-slate-500">
-                        {account.institution_name || "Manual"}
-                        {account.link_id ? " · linked" : ""}
+                        {account.institution_name || t("accounts.manual")}
+                        {account.link_id ? ` · ${t("accounts.linked")}` : ""}
                       </div>
                     </td>
-                    <td data-label="Type" className="px-4 py-3 text-slate-400">{ACCOUNT_TYPE_LABELS[account.type]}</td>
                     <td
-                      data-label="Balance"
+                      data-col="type"
+                      data-label={t("accounts.colType")}
+                      className="px-4 py-3 text-slate-400"
+                    >
+                      {tAccountType(account.type)}
+                    </td>
+                    <td
+                      data-col="balance"
+                      data-label={t("accounts.colBalance")}
                       className={`px-4 py-3 text-right tabular-nums ${
                         Number(account.balance_current) < 0 ? "text-rose-400" : "text-slate-100"
                       }`}
                     >
                       {formatMoney(account.balance_current, account.currency)}
                     </td>
-                    <td data-label="Transactions" className="px-4 py-3 text-right tabular-nums text-slate-400">{account.transaction_count}</td>
-                    <td data-label="Actions" className="px-4 py-3">
+                    <td
+                      data-col="transactions"
+                      data-label={t("accounts.colTransactions")}
+                      className="px-4 py-3 text-right tabular-nums text-slate-400"
+                    >
+                      {account.transaction_count}
+                    </td>
+                    <td
+                      data-col="actions"
+                      data-label={t("accounts.colActions")}
+                      className="px-4 py-3"
+                    >
                       <div className="flex justify-end gap-1">
                         <button className="btn-ghost" onClick={() => setImportModal({ account })}>
-                          Import
+                          {t("accounts.import")}
                         </button>
                         <button className="btn-ghost" onClick={() => setModal({ account })}>
-                          Edit
+                          {t("common.edit")}
                         </button>
                         <button
                           className="btn-ghost text-rose-400 hover:text-rose-300"
                           onClick={() => onDelete(account)}
                           disabled={deleteMutation.isPending}
                         >
-                          Delete
+                          {t("common.delete")}
                         </button>
                       </div>
                     </td>
@@ -154,9 +172,9 @@ export function AccountsPage() {
 
         {accounts.length > 0 && (
           <p className="text-sm text-slate-500">
-            Balances for manual accounts are the opening balance plus tracked transactions. Need to record something?{" "}
+            {t("accounts.footerNotePrefix")}{" "}
             <Link to="/transactions" className="text-emerald-400 hover:text-emerald-300">
-              Add a transaction
+              {t("accounts.footerNoteLink")}
             </Link>
             .
           </p>
@@ -164,7 +182,9 @@ export function AccountsPage() {
       </div>
 
       {modal && <AccountModal account={modal.account} onClose={() => setModal(null)} />}
-      {importModal && <ImportModal account={importModal.account} onClose={() => setImportModal(null)} />}
+      {importModal && (
+        <ImportModal account={importModal.account} onClose={() => setImportModal(null)} />
+      )}
     </AppLayout>
   );
 }

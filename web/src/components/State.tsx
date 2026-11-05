@@ -1,7 +1,10 @@
+import { useI18n } from "../i18n/I18nContext";
+
 /** Shared loading / empty / error states so pages stay consistent. */
 
-export function Loading({ label = "Loading…" }: { label?: string }) {
-  return <p className="text-sm text-slate-500">{label}</p>;
+export function Loading({ label }: { label?: string }) {
+  const { t } = useI18n();
+  return <p className="text-sm text-slate-500">{label ?? t("common.loading")}</p>;
 }
 
 export function EmptyState({

@@ -17,6 +17,11 @@ type credentialsRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 	Name     string `json:"name,omitempty"`
+	Language string `json:"language,omitempty"`
+}
+
+type updateMeRequest struct {
+	Language string `json:"language"`
 }
 
 type authResponse struct {
@@ -32,7 +37,7 @@ func (h *authHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, token, err := h.svc.Register(r.Context(), req.Email, req.Password, req.Name)
+	user, token, err := h.svc.Register(r.Context(), req.Email, req.Password, req.Name, req.Language)
 	if err != nil {
 		switch {
 		case errors.Is(err, auth.ErrEmailTaken):
@@ -95,6 +100,26 @@ func (h *authHandler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"user": user})
+}
+
+// UpdateMe handles PATCH /api/v1/auth/me.
+func (h *authHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
+	user, ok := UserFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+		return
+	}
+	var req updateMeRequest
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
+		return
+	}
+	updated, err := h.svc.UpdateLanguage(r.Context(), user.ID, req.Language)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"user": updated})
 }
 
 func (h *authHandler) setSessionCookie(w http.ResponseWriter, token string) {

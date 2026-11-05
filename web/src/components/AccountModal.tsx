@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError } from "../api/client";
-import { ACCOUNT_TYPE_LABELS, financeApi } from "../api/finance";
+import { financeApi } from "../api/finance";
 import type { Account, AccountPatch, AccountType } from "../api/finance";
+import { useI18n } from "../i18n/I18nContext";
 import { Modal } from "./Modal";
 
 const TYPES: AccountType[] = ["checking", "savings", "credit_card", "loan", "investment", "other"];
@@ -19,6 +20,7 @@ export function AccountModal({
 }) {
   const editing = Boolean(account);
   const queryClient = useQueryClient();
+  const { t, tAccountType, tError } = useI18n();
   const linksQuery = useQuery({ queryKey: ["links"], queryFn: financeApi.links });
   const links = linksQuery.data?.links ?? [];
 
@@ -61,10 +63,10 @@ export function AccountModal({
     },
   });
 
-  const error = mutation.error instanceof ApiError ? mutation.error.message : null;
+  const error = mutation.error instanceof ApiError ? tError(mutation.error) : null;
 
   return (
-    <Modal title={editing ? "Edit account" : "Add account"} onClose={onClose}>
+    <Modal title={editing ? t("accountModal.editTitle") : t("accountModal.addTitle")} onClose={onClose}>
       <form
         className="space-y-4"
         onSubmit={(e) => {
@@ -74,14 +76,14 @@ export function AccountModal({
       >
         <div>
           <label className="label" htmlFor="account-name">
-            Name
+            {t("accountModal.nameLabel")}
           </label>
           <input
             id="account-name"
             className="input"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="BBVA Nómina"
+            placeholder={t("accountModal.namePlaceholder")}
             maxLength={80}
             autoFocus
           />
@@ -90,19 +92,24 @@ export function AccountModal({
         <div className="form-grid">
           <div>
             <label className="label" htmlFor="account-type">
-              Type
+              {t("accountModal.typeLabel")}
             </label>
-            <select id="account-type" className="input" value={type} onChange={(e) => setType(e.target.value as AccountType)}>
-              {TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {ACCOUNT_TYPE_LABELS[t] ?? t}
+            <select
+              id="account-type"
+              className="input"
+              value={type}
+              onChange={(e) => setType(e.target.value as AccountType)}
+            >
+              {TYPES.map((accountType) => (
+                <option key={accountType} value={accountType}>
+                  {tAccountType(accountType)}
                 </option>
               ))}
             </select>
           </div>
           <div>
             <label className="label" htmlFor="account-bank">
-              Bank
+              {t("accountModal.bankLabel")}
             </label>
             <select
               id="account-bank"
@@ -111,7 +118,7 @@ export function AccountModal({
               onChange={(e) => setLinkId(e.target.value)}
               disabled={linksQuery.isLoading}
             >
-              <option value="">No bank (manual)</option>
+              <option value="">{t("accountModal.noBankManual")}</option>
               {links.map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.institution_name}
@@ -124,7 +131,7 @@ export function AccountModal({
         {manual ? (
           <div>
             <label className="label" htmlFor="account-opening">
-              Opening balance
+              {t("accountModal.openingBalanceLabel")}
             </label>
             <input
               id="account-opening"
@@ -135,20 +142,20 @@ export function AccountModal({
               onChange={(e) => setOpeningBalance(e.target.value)}
             />
             <p className="mt-1 text-xs text-slate-500">
-              The balance you had before starting to track this account.
+              {t("accountModal.openingBalanceHint")}
             </p>
           </div>
         ) : (
           <p className="rounded-lg bg-slate-900 px-3 py-2 text-xs text-slate-400">
-            Linked accounts take their balance from the bank. You can connect a bank from the Banks
-            page.
+            {t("accountModal.linkedHintPrefix")} {t("accountModal.linkedHintLink")}{" "}
+            {t("accountModal.linkedHintSuffix")}
           </p>
         )}
 
         {editing && (
           <label className="flex items-center gap-2 text-sm text-slate-300">
             <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-            Active
+            {t("accountModal.activeLabel")}
           </label>
         )}
 
@@ -156,10 +163,14 @@ export function AccountModal({
 
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" className="btn-ghost" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button type="submit" className="btn-primary" disabled={!name.trim() || mutation.isPending}>
-            {mutation.isPending ? "Saving…" : editing ? "Save changes" : "Add account"}
+            {mutation.isPending
+              ? t("common.saving")
+              : editing
+                ? t("common.saveChanges")
+                : t("accountModal.addTitle")}
           </button>
         </div>
       </form>

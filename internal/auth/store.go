@@ -28,15 +28,19 @@ type Store struct {
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
-func (s *Store) CreateUser(ctx context.Context, email, passwordHash, name string) (domain.User, error) {
+func (s *Store) CreateUser(ctx context.Context, email, passwordHash, name string, language ...string) (domain.User, error) {
+	lang := domain.LanguageEN
+	if len(language) > 0 && language[0] != "" {
+		lang = language[0]
+	}
 	const q = `
-		INSERT INTO users (email, password_hash, name)
-		VALUES ($1, $2, $3)
-		RETURNING id, email, password_hash, name, created_at, updated_at`
+		INSERT INTO users (email, password_hash, name, language)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, email, password_hash, name, language, created_at, updated_at`
 
 	var u domain.User
-	err := s.pool.QueryRow(ctx, q, email, passwordHash, name).Scan(
-		&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.CreatedAt, &u.UpdatedAt,
+	err := s.pool.QueryRow(ctx, q, email, passwordHash, name, lang).Scan(
+		&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Language, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -48,14 +52,34 @@ func (s *Store) CreateUser(ctx context.Context, email, passwordHash, name string
 	return u, nil
 }
 
+func (s *Store) UpdateUserLanguage(ctx context.Context, userID uuid.UUID, language string) (domain.User, error) {
+	const q = `
+		UPDATE users
+		SET language = $2, updated_at = now()
+		WHERE id = $1
+		RETURNING id, email, password_hash, name, language, created_at, updated_at`
+
+	var u domain.User
+	err := s.pool.QueryRow(ctx, q, userID, language).Scan(
+		&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Language, &u.CreatedAt, &u.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.User{}, ErrNotFound
+	}
+	if err != nil {
+		return domain.User{}, fmt.Errorf("update user language: %w", err)
+	}
+	return u, nil
+}
+
 func (s *Store) GetUserByEmail(ctx context.Context, email string) (domain.User, error) {
 	const q = `
-		SELECT id, email, password_hash, name, created_at, updated_at
+		SELECT id, email, password_hash, name, language, created_at, updated_at
 		FROM users WHERE lower(email) = lower($1)`
 
 	var u domain.User
 	err := s.pool.QueryRow(ctx, q, email).Scan(
-		&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.CreatedAt, &u.UpdatedAt,
+		&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Language, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.User{}, ErrNotFound
@@ -85,7 +109,7 @@ func (s *Store) CreateSession(ctx context.Context, userID uuid.UUID, tokenHash [
 // SessionUser returns the user for a session token hash, or ErrInvalidSession.
 func (s *Store) SessionUser(ctx context.Context, tokenHash []byte) (domain.User, domain.Session, error) {
 	const q = `
-		SELECT u.id, u.email, u.password_hash, u.name, u.created_at, u.updated_at,
+		SELECT u.id, u.email, u.password_hash, u.name, u.language, u.created_at, u.updated_at,
 		       s.id, s.user_id, s.user_agent, s.ip, s.expires_at, s.created_at, s.last_used_at
 		FROM sessions s
 		JOIN users u ON u.id = s.user_id
@@ -94,7 +118,7 @@ func (s *Store) SessionUser(ctx context.Context, tokenHash []byte) (domain.User,
 	var u domain.User
 	var sess domain.Session
 	err := s.pool.QueryRow(ctx, q, tokenHash).Scan(
-		&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.CreatedAt, &u.UpdatedAt,
+		&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Language, &u.CreatedAt, &u.UpdatedAt,
 		&sess.ID, &sess.UserID, &sess.UserAgent, &sess.IP, &sess.ExpiresAt, &sess.CreatedAt, &sess.LastUsedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {

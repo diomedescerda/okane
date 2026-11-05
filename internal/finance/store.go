@@ -497,12 +497,13 @@ func (s *Store) SummaryTotals(ctx context.Context, userID uuid.UUID, from, to ti
 func (s *Store) CategoryTotals(ctx context.Context, userID uuid.UUID, from, to time.Time) ([]CategoryTotal, error) {
 	const q = `
 		SELECT
-			c.id, COALESCE(c.name, 'Uncategorized'), COALESCE(c.icon, ''), COALESCE(c.color, ''),
+			c.id, COALESCE(c.slug, 'uncategorized'), COALESCE(c.name, 'Uncategorized'),
+			COALESCE(c.icon, ''), COALESCE(c.color, ''),
 			COALESCE(c.kind, ''), t.direction, sum(t.amount), count(*)
 		FROM transactions t
 		LEFT JOIN categories c ON c.id = t.category_id
 		WHERE t.user_id = $1 AND t.occurred_at >= $2 AND t.occurred_at < $3
-		GROUP BY c.id, c.name, c.icon, c.color, c.kind, t.direction
+		GROUP BY c.id, c.slug, c.name, c.icon, c.color, c.kind, t.direction
 		ORDER BY sum(abs(t.amount)) DESC`
 
 	rows, err := s.pool.Query(ctx, q, userID, from, to)
@@ -515,7 +516,7 @@ func (s *Store) CategoryTotals(ctx context.Context, userID uuid.UUID, from, to t
 	for rows.Next() {
 		var t CategoryTotal
 		err := rows.Scan(
-			&t.CategoryID, &t.Name, &t.Icon, &t.Color, &t.Kind, &t.Direction, &t.Total, &t.Count,
+			&t.CategoryID, &t.Slug, &t.Name, &t.Icon, &t.Color, &t.Kind, &t.Direction, &t.Total, &t.Count,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan category total: %w", err)

@@ -2,21 +2,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
-import {
-  INSTITUTION_TYPE_LABELS,
-  financeApi,
-  type Institution,
-  type InstitutionType,
-} from "../api/finance";
-import { ApiError } from "../api/client";
+import { financeApi, type Institution, type InstitutionType } from "../api/finance";
 import { AccountModal } from "../components/AccountModal";
 import { AppLayout } from "../components/AppLayout";
 import { InstitutionIcon } from "../components/InstitutionIcon";
 import { InstitutionModal } from "../components/InstitutionModal";
 import { EmptyState, ErrorMessage, Loading } from "../components/State";
+import { useI18n } from "../i18n/I18nContext";
 
 export function BanksPage() {
   const queryClient = useQueryClient();
+  const { t, tInstitutionType, tError } = useI18n();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<InstitutionType | "">("");
   const [customModal, setCustomModal] = useState(false);
@@ -44,7 +40,7 @@ export function BanksPage() {
       setError(null);
       invalidateAll();
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : "Could not connect the bank."),
+    onError: (err) => setError(tError(err, "banks.connectFailed")),
   });
 
   const detachMutation = useMutation({
@@ -53,7 +49,7 @@ export function BanksPage() {
       setError(null);
       invalidateAll();
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : "Could not detach the bank."),
+    onError: (err) => setError(tError(err, "banks.detachFailed")),
   });
 
   const deleteInstitutionMutation = useMutation({
@@ -62,25 +58,17 @@ export function BanksPage() {
       setError(null);
       invalidateAll();
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : "Could not delete the bank."),
+    onError: (err) => setError(tError(err, "banks.deleteCustomFailed")),
   });
 
   function onDetach(id: string, name: string) {
-    if (
-      window.confirm(
-        `Detach "${name}"?\n\nIts accounts stay with all their transactions; they just stop being linked to the bank.`,
-      )
-    ) {
+    if (window.confirm(t("banks.detachConfirm", { name }))) {
       detachMutation.mutate(id);
     }
   }
 
   function onDeleteInstitution(institution: Institution) {
-    if (
-      window.confirm(
-        `Delete "${institution.display_name}"?\n\nIts connections are removed and their accounts are detached. Transactions are never deleted.`,
-      )
-    ) {
+    if (window.confirm(t("banks.deleteCustomConfirm", { name: institution.display_name }))) {
       deleteInstitutionMutation.mutate(institution.id);
     }
   }
@@ -90,32 +78,35 @@ export function BanksPage() {
       <div className="mx-auto max-w-5xl space-y-8">
         <div className="page-header">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Banks</h1>
-            <p className="mt-1 text-sm text-slate-400">
-              Connect the banks and wallets you use, then attach accounts to them.
-            </p>
+            <h1 className="text-2xl font-semibold tracking-tight">{t("nav.banks")}</h1>
+            <p className="mt-1 text-sm text-slate-400">{t("banks.subtitle")}</p>
           </div>
           <button className="btn-secondary" onClick={() => setCustomModal(true)}>
-            + Custom bank
+            {t("banks.customBankButton")}
           </button>
         </div>
 
         <ErrorMessage message={error} />
 
         <section className="space-y-3">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">My banks</h2>
+          <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
+            {t("banks.myBanks")}
+          </h2>
           {linksQuery.isLoading ? (
             <Loading />
           ) : links.length === 0 ? (
             <EmptyState
               icon="🏦"
-              title="No banks connected yet"
-              description="Pick one of your banks below to create a connection, then attach your accounts to it."
+              title={t("banks.emptyTitle")}
+              description={t("banks.emptyDescription")}
             />
           ) : (
             <ul className="divide-y divide-slate-800/80 overflow-hidden rounded-2xl border border-slate-800">
               {links.map((link) => (
-                <li key={link.id} className="flex flex-wrap items-center gap-3 bg-slate-900/40 px-4 py-4">
+                <li
+                  key={link.id}
+                  className="flex flex-wrap items-center gap-3 bg-slate-900/40 px-4 py-4"
+                >
                   <InstitutionIcon
                     name={link.institution_name}
                     logoUrl={link.institution_logo_url}
@@ -127,22 +118,27 @@ export function BanksPage() {
                     <div className="break-words font-medium">{link.institution_name}</div>
                     <div className="text-xs text-slate-500">
                       {link.account_count === 0
-                        ? "No accounts attached yet"
-                        : `${link.account_count} account${link.account_count === 1 ? "" : "s"} attached`}
+                        ? t("banks.noAccountsAttached")
+                        : link.account_count === 1
+                          ? t("banks.accountsAttached.one", { count: link.account_count })
+                          : t("banks.accountsAttached.other", { count: link.account_count })}
                     </div>
                   </div>
-                  <button className="btn-ghost" onClick={() => setAccountModal({ linkId: link.id })}>
-                    + Add account
+                  <button
+                    className="btn-ghost"
+                    onClick={() => setAccountModal({ linkId: link.id })}
+                  >
+                    {t("banks.addAccountButton")}
                   </button>
                   <Link to="/accounts" className="btn-ghost">
-                    Accounts
+                    {t("nav.accounts")}
                   </Link>
                   <button
                     className="btn-ghost text-rose-400 hover:text-rose-300"
                     onClick={() => onDetach(link.id, link.institution_name)}
                     disabled={detachMutation.isPending}
                   >
-                    Detach
+                    {t("banks.detach")}
                   </button>
                 </li>
               ))}
@@ -152,25 +148,27 @@ export function BanksPage() {
 
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">Add a bank</h2>
+            <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
+              {t("banks.addABank")}
+            </h2>
             <div className="grid w-full min-w-0 grid-cols-1 gap-2 min-[420px]:grid-cols-[minmax(0,1fr)_8rem] sm:w-auto">
               <input
                 className="input sm:w-56"
-                aria-label="Search banks"
+                aria-label={t("banks.searchLabel")}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search banks…"
+                placeholder={t("banks.searchPlaceholder")}
               />
               <select
                 className="input"
-                aria-label="Bank type"
+                aria-label={t("banks.bankTypeAria")}
                 value={typeFilter}
                 onChange={(event) => setTypeFilter(event.target.value as InstitutionType | "")}
               >
-                <option value="">All types</option>
-                <option value="bank">Banks</option>
-                <option value="wallet">Wallets</option>
-                <option value="other">Other</option>
+                <option value="">{t("banks.filterAll")}</option>
+                <option value="bank">{t("banks.filterBank")}</option>
+                <option value="wallet">{t("banks.filterWallet")}</option>
+                <option value="other">{t("banks.filterOther")}</option>
               </select>
             </div>
           </div>
@@ -178,7 +176,7 @@ export function BanksPage() {
           {institutionsQuery.isLoading ? (
             <Loading />
           ) : institutions.length === 0 ? (
-            <p className="text-sm text-slate-500">No banks match your search.</p>
+            <p className="text-sm text-slate-500">{t("banks.noMatches")}</p>
           ) : (
             <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
               {institutions.map((institution) => {
@@ -198,20 +196,26 @@ export function BanksPage() {
                     <div className="min-w-0 flex-1 basis-[calc(100%-4rem)]">
                       <div className="truncate font-medium">{institution.display_name}</div>
                       <div className="break-words text-xs text-slate-500">
-                        {INSTITUTION_TYPE_LABELS[institution.type]}
-                        {institution.website ? ` · ${new URL(institution.website).hostname}` : ""}
+                        {tInstitutionType(institution.type)}
+                        {institution.website
+                          ? ` · ${new URL(institution.website).hostname}`
+                          : ""}
                       </div>
-                      {!institution.is_system && <div className="text-xs text-slate-600">Custom</div>}
+                      {!institution.is_system && (
+                        <div className="text-xs text-slate-600">{t("banks.customBadge")}</div>
+                      )}
                     </div>
                     {connected ? (
-                      <span className="rounded-lg bg-emerald-950/60 px-2 py-1 text-xs text-emerald-400">Connected</span>
+                      <span className="rounded-lg bg-emerald-950/60 px-2 py-1 text-xs text-emerald-400">
+                        {t("banks.connectedBadge")}
+                      </span>
                     ) : (
                       <button
                         className="btn-primary"
                         onClick={() => connectMutation.mutate(institution.id)}
                         disabled={connectMutation.isPending}
                       >
-                        Connect
+                        {t("banks.connectButton")}
                       </button>
                     )}
                     {!institution.is_system && (
@@ -219,8 +223,8 @@ export function BanksPage() {
                         className="btn-ghost text-rose-400 hover:text-rose-300"
                         onClick={() => onDeleteInstitution(institution)}
                         disabled={deleteInstitutionMutation.isPending}
-                        title="Delete custom bank"
-                        aria-label={`Delete ${institution.display_name}`}
+                        title={t("banks.deleteCustomAria")}
+                        aria-label={`${t("common.delete")} ${institution.display_name}`}
                       >
                         ✕
                       </button>

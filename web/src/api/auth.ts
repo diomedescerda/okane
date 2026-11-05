@@ -10,7 +10,9 @@ export const authApi = {
   me: () => api.get<{ user: User }>("/api/v1/auth/me").then((r) => r.user),
   login: (email: string, password: string) =>
     api.post<AuthResponse>("/api/v1/auth/login", { email, password }).then((r) => r.user),
-  register: (email: string, password: string, name: string) =>
-    api.post<AuthResponse>("/api/v1/auth/register", { email, password, name }).then((r) => r.user),
+  register: (email: string, password: string, name: string, language?: "en" | "es" | "ja") =>
+    api.post<AuthResponse>("/api/v1/auth/register", { email, password, name, language }).then((r) => r.user),
+  updateMe: (patch: { language: "en" | "es" | "ja" }) =>
+    api.patch<{ user: User }>("/api/v1/auth/me", patch).then((r) => r.user),
   logout: () => api.post<void>("/api/v1/auth/logout"),
 };

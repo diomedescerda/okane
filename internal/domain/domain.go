@@ -9,11 +9,33 @@ import (
 	"github.com/kenma/okane/internal/money"
 )
 
+const (
+	LanguageEN = "en"
+	LanguageES = "es"
+	LanguageJA = "ja"
+)
+
+// NormalizeLanguage validates a language code ("en", "es", "ja"). An empty
+// string defaults to "en".
+func NormalizeLanguage(lang string) (string, bool) {
+	switch lang {
+	case "", LanguageEN:
+		return LanguageEN, true
+	case LanguageES:
+		return LanguageES, true
+	case LanguageJA:
+		return LanguageJA, true
+	default:
+		return "", false
+	}
+}
+
 type User struct {
 	ID           uuid.UUID `json:"id"`
 	Email        string    `json:"email"`
 	PasswordHash string    `json:"-"`
 	Name         string    `json:"name"`
+	Language     string    `json:"language"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
